@@ -3,7 +3,9 @@
 # Build output
 @AFHiveMind/Addons/
 # Whatever the offline test leaves behind
-testmission/profiles/
+testmission/profiles*/
+testmission/@AFHiveTest/
 testmission/captures/
 testmission/*/expansion/
 testmission/*/storage_*/
+testmission/run_mp/

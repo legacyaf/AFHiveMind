@@ -65,8 +65,22 @@ powershell -ExecutionPolicy Bypass -File testmission\run_test.ps1 -Fresh
 
 runs an offline mission in DayZDiag: a patrol spawns on an empty brain, the player's rifle kills it, the HiveMind evolves, a second patrol must come out harder, and a bot then kills the player. Leave out `-Fresh` to run again on the brain the last run saved.
 
-What the offline test cannot show: bots do not manage to fire in offline DayZDiag (their weapons fail to chamber), so the player's death is dealt by script as melee damage from a bot, and bullet hits on bots are dealt by script with the player's rifle as the source. Real firefights have only been exercised through these stand-ins, not on a live server yet.
+What the offline test cannot show: bots do not manage to fire in offline DayZDiag (their weapons fail to chamber), so the player's death is dealt by script as melee damage from a bot, and bullet hits on bots are dealt by script with the player's rifle as the source.
 
+```powershell
+powershell -ExecutionPolicy Bypass -File testmission\run_server_test.ps1
+```
+
+runs the real thing: DayZDiag as a local dedicated server and a client that connects to it, with Bohemia's stock mission files (clone https://github.com/BohemiaInteractive/DayZ-Central-Economy to `C:\DayZMods\_external\DayZ-Central-Economy` first). It brings the client window to the front and clicks the mouse in it, so leave the PC alone for the five minutes it takes. On the server it has shown:
+
+- Expansion's own patrols across the map being tuned as they spawn
+- bots killing the player with real bullets while their damage multiplier was not 1, and the HiveMind recording the death
+- a real bullet killing a bot whose damage-received multiplier was 0.92 (a raider's shot on a target bot), so Expansion's handling of scaled damage works with HiveMind's values
+- the debug panel over the network, refused for a player who is not listed under `Admins` and shown once listed
+
+Still not shown by any automated test: a player's own bullet killing a bot. The test player's rounds are fired by the server but none hits, which is a limit of driving a character by script. To check it, join a server running the mod, shoot a bot, and look for `seen: <your name> killed a bot` in `hivemind.log`.
+
+`testmission\testmod\AFHiveTest` is a helper mod for this test only (it raises the test player's rifle and opens the panel on the server's order). Never load it on a real server.
 ## How it hooks into Expansion
 
 Three overrides, in `Scripts\4_World\AFHiveMind\AFHM_Hooks.c`:
