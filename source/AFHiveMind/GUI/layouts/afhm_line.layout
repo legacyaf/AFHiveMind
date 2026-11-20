@@ -1,0 +1,15 @@
+TextWidgetClass AFHM_Line {
+ visible 1
+ ignorepointer 1
+ position 12 0
+ size 640 18
+ hexactpos 1
+ vexactpos 1
+ hexactsize 1
+ vexactsize 1
+ priority 901
+ text ""
+ font "gui/fonts/sdf_MetronBook24"
+ "exact text" 1
+ "exact text size" 16
+}

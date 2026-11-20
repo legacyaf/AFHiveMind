@@ -1,0 +1,9 @@
+# The private signing key never goes into git
+*.biprivatekey
+# Build output
+@AFHiveMind/Addons/
+# Whatever the offline test leaves behind
+testmission/profiles/
+testmission/captures/
+testmission/*/expansion/
+testmission/*/storage_*/
