@@ -21,11 +21,18 @@ A DayZ mod that watches how players and [DayZ Expansion AI](https://steamcommuni
 | Accuracy | x0.6 | as configured | x1.5 |
 | Damage dealt | x0.75 | as configured | x1.3 |
 | Damage received | as configured (scaling is off by default) | | |
-| Threat range | grows to cover the distance players kill from, up to 1200 m | | |
+| Sight (threat range) | x0.75 | as configured | x1.1, never past 1,100 m (Expansion caps bot visibility there) |
+| Hearing (how far a bot goes to check a gunshot) | x0.7 | as configured | x1.3 |
 
 Two local corrections sit on top of the global figure: bots in a 500 m zone where players farm them get up to +0.15, and bots spawning near a player who rarely loses get up to +0.2 (and the reverse for a zone or a player the bots dominate).
 
-Every limit above is a number in `config.json`.
+Every limit above is a number in `config.json`. `config.json` is written back each time it is read, so settings added in a newer version appear in an older file with their defaults, while your own values are kept.
+
+**Night counter.** Each lethal fight is marked day or night by the bot's own reckoning: Expansion's daylight figure, which it also uses to decide when bots switch on lights and NVG. Once the night share passes `NightShareStart` (30%), up to `NightGearShareMax` (50%) of new patrol bots get night-vision goggles on a headstrap; the full share is reached at `NightShareFull` (70%). Bots switch them on themselves at night. With `NightGearLootable` false (the default), the goggles are removed when the bot dies.
+
+**Bounty loot.** A bot tuned above `BountyFromDifficulty` (0.6) and killed by a player may drop one extra item where it falls, from `BountyCommon` or `BountyRare`. The chance rises to `BountyChanceMax` (75%) at difficulty 1, and the rare share to `BountyRareShareMax` (50%). Unknown class names are logged and skipped.
+
+**Saved patrols.** Patrols that Expansion saves across restarts (`Persist`) are tuned, but their weapons and gear are never changed, because they are rebuilt from the save on every restart.
 
 **Range counter.** Each bot kill is sorted by distance: beyond `LongRangeDistance` (150 m) counts as sniping, within `CloseRangeDistance` (40 m) as rushing. Once the community clearly leans one way:
 

@@ -113,6 +113,43 @@ class CustomMission: MissionGameplay
 
 	protected eAIBase m_Lone;
 	protected eAIDynamicPatrol m_Charlie;
+	protected eAIDynamicPatrol m_Delta;
+	protected ref array<eAIBase> m_DeltaBots = new array<eAIBase>;
+	protected int m_BountyBefore;
+
+	void ReportDelta()
+	{
+		if (!m_Delta || !m_Delta.m_Group)
+		{
+			Print("[AFHive] Delta: no group");
+			return;
+		}
+		for (int i = 0; i < m_Delta.m_Group.Count(); i++)
+		{
+			eAIBase ai = eAIBase.Cast(m_Delta.m_Group.GetMember(i));
+			if (!ai)
+				continue;
+			m_DeltaBots.Insert(ai);
+			Print("[AFHive] Delta bot " + i.ToString() + ": night vision " + ai.AFHM_HasNightVision().ToString() + ", sees " + ai.m_eAI_ThreatDistanceLimit.ToString() + " m, hears " + ai.m_eAI_NoiseInvestigationDistanceLimit.ToString() + " m, difficulty " + ai.AFHM_GetDifficulty().ToString() + " | " + ai.AFHM_GetProfile());
+		}
+	}
+
+	void ReportDeltaDead()
+	{
+		int dead;
+		int withGoggles;
+		foreach (eAIBase bot: m_DeltaBots)
+		{
+			if (!bot)
+				continue;
+			if (!bot.IsAlive())
+				dead++;
+			if (bot.AFHM_HasNightVision())
+				withGoggles++;
+		}
+		int drops = AFHiveMind.Get().m_Brain.TotalBountyDrops - m_BountyBefore;
+		Print("[AFHive] Delta after the shooting: " + dead.ToString() + " of " + m_DeltaBots.Count().ToString() + " dead, bodies still wearing goggles " + withGoggles.ToString() + ", bounty items dropped " + drops.ToString());
+	}
 
 	void ReportWeapons(string name, eAIDynamicPatrol patrol)
 	{
@@ -136,7 +173,8 @@ class CustomMission: MissionGameplay
 				shoulder = slung.GetType();
 			Print("[AFHive] " + name + " bot " + i.ToString() + " weapons: hands " + hands + ", shoulder " + shoulder + ", flanking " + ai.m_eAI_MaxFlankingDistance.ToString() + " | " + ai.AFHM_GetProfile());
 		}
-	}	protected eAIBase m_Follower;
+	}
+	protected eAIBase m_Follower;
 
 	// Bots made the way convoy and helicopter mods make them: created directly, no patrol.
 	// The lone one must be tuned after a few seconds; the one following the player must not.
@@ -246,7 +284,8 @@ class CustomMission: MissionGameplay
 					// Alpha died at close range, so the bots should lean to automatics. The test
 					// raises the share so that every Bravo bot swaps and the result is certain.
 					Print("[AFHive] style after Alpha: " + AFHiveMind.Get().Style().ToString() + ", role share " + AFHiveMind.Get().RoleShare().ToString() + ", flank x" + AFHiveMind.Get().FlankScale().ToString());
-					AFHiveMind.Get().m_Config.RoleShareMax = 5;					m_Bravo = SpawnPatrol("Bravo", 4, "30 0 50");
+					AFHiveMind.Get().m_Config.RoleShareMax = 5;
+					m_Bravo = SpawnPatrol("Bravo", 4, "30 0 50");
 					Next();
 				}
 				break;
@@ -261,7 +300,13 @@ class CustomMission: MissionGameplay
 					hmc.m_Brain.CloseKills = 0;
 					hmc.m_Brain.BotsKilledByPlayers = 26;
 					Print("[AFHive] style forced to snipers: " + hmc.Style().ToString() + ", role share " + hmc.RoleShare().ToString() + ", flank x" + hmc.FlankScale().ToString());
-					m_Charlie = SpawnPatrol("Charlie", 3, "-40 0 60");					AFHM_ShowPanel(true);
+					m_Charlie = SpawnPatrol("Charlie", 3, "-40 0 60");
+					// And pretend most fights happen at night: Delta should get night vision.
+					hmc.m_Brain.NightFights = 30;
+					hmc.m_Config.NightGearShareMax = 5;
+					Print("[AFHive] night share forced: " + hmc.NightShare().ToString() + ", night gear share " + hmc.NightGearShare().ToString());
+					m_Delta = SpawnPatrol("Delta", 3, "20 0 70");
+					AFHM_ShowPanel(true);
 					Next();
 				}
 				break;
@@ -271,6 +316,12 @@ class CustomMission: MissionGameplay
 					ReportLoneBots();
 					ReportWeapons("Bravo", m_Bravo);
 					ReportWeapons("Charlie", m_Charlie);
+					ReportDelta();
+					// Shoot Delta dead with the bounty certain: each should drop an item, and
+					// its goggles should vanish from the body.
+					AFHiveMind.Get().m_Config.BountyChanceMax = 5;
+					m_BountyBefore = AFHiveMind.Get().m_Brain.TotalBountyDrops;
+					ShootPatrol(m_Delta);
 					Print("[AFHive] SHOT panel_after_learning");
 					Next();
 				}
@@ -278,6 +329,7 @@ class CustomMission: MissionGameplay
 			case 4:
 				if (m_HiveStepTime >= 3)
 				{
+					ReportDeltaDead();
 					g_HivePlayer.SetAllowDamage(true);
 					Print("[AFHive] player can be hurt now; waiting for Bravo to attack");
 					Next();

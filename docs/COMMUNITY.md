@@ -47,7 +47,7 @@ It moves slowly. A single bad fight won't swing it; it needs a pattern. Until it
 
 ### It forgets, too
 
-Old fights fade. After **72 hours of server uptime**, a fight counts half as much as a fresh one. So the AI adapts to how the community plays **now**, not how it played a month ago. If everyone gets better, the bots catch up. If a wave of new players joins, the bots ease off.
+Old fights fade. After **72 hours**, a fight counts half as much as a fresh one. So the AI adapts to how the community plays **now**, not how it played a month ago. If everyone gets better, the bots catch up. If a wave of new players joins, the bots ease off.
 
 ## What changes for the bots
 
@@ -57,7 +57,8 @@ When a bot spawns, HiveMind takes the settings the admins gave that bot and scal
 |---|---|---|---|
 | **Accuracy** | 60% of normal | normal | 150% of normal (capped at perfect) |
 | **Damage dealt** | 75% of normal | normal | 130% of normal |
-| **Detection range** | grows if players start killing from far away (up to 1,200 m) | | |
+| **How far they see you** | 75% of normal | normal | 110% of normal (never past about 1.1 km) |
+| **How far they come to check a gunshot** | 70% of normal | normal | 130% of normal |
 
 There is also a setting for how much damage bots *take*, but it is **switched off** on our server for now.
 
@@ -70,32 +71,44 @@ On top of the server-wide difficulty, two smaller corrections apply:
 
 That means a skilled player roaming alone may run into stiffer resistance than a new player nearby, and the bots in a popular farming spot will start fighting back.
 
-### Sniping makes bots more alert
-
-If players start landing kills from long range, bots learn to keep watch further out. They won't see through walls, but they'll react to threats at the distances you have actually been killing them from.
 
 ### Bots answer how you fight
 
 HiveMind sorts every kill on a bot by range: beyond 150 m counts as sniping, within 40 m as rushing. When the community clearly leans one way, bots change their approach:
 
-- **If you mostly snipe:** bots flank up to 1.5x wider to get around your position, and up to 40% of newly spawned patrol bots carry a scoped rifle (SVD, Mosin, CZ527 or Winchester 70) instead of their usual gun.
-- **If you mostly rush:** bots push in more directly instead of swinging wide, and up to 40% of new patrol bots carry an automatic (AKM, AK74, M4A1, MP5K or UMP45).
+- **If you mostly snipe:** bots flank up to 1.5x wider to get around your position, go up to 1.5x further to hunt down a shot they heard, and up to 40% of newly spawned patrol bots carry a scoped rifle (SVD, Mosin, CZ527 or Winchester 70) instead of their usual gun.
+- **If you mostly rush:** bots push in more directly instead of swinging wide, hold closer to their position, and up to 40% of new patrol bots carry an automatic (AKM, AK74, M4A1, MP5K or UMP45).
 - **If there's no clear pattern,** nothing changes.
 
 Only the weapon changes. Bots keep their faction's clothes and gear, so a bandit still looks like a bandit. Bots riding in convoys and vehicles keep their own weapons. Like everything else, this fades over time and follows the community's current habits.
+
+### Owning the night
+
+At night, bots without night vision are close to blind, while a player carrying a lit torch or headlamp can be spotted from 250 m. If a large share of the community's fights with bots happen at night, HiveMind starts handing night-vision goggles to some newly spawned patrol bots (up to half of them). Bots switch them on by themselves when it gets dark.
+
+The goggles **can't be looted**: they're removed when the bot dies, so this doesn't flood the server with NVGs.
+
+### Bounty loot
+
+Harder bots are worth more. A bot spawned at above-normal difficulty may drop **one extra item** where it dies, but only when a player killed it. The harder the bot, the better the odds (up to 75%), and the more likely the item comes from the rare list:
+
+- **Common:** bandages, morphine, epinephrine, ammo boxes, rifle magazines
+- **Rare:** night-vision goggles, rangefinder, ACOG or PSO-1 scope, radio, saline bag, 60-round STANAG magazine, plate carrier
+
+So when the bots get tougher, fighting them pays more.
 
 ### Which bots are affected
 
 - **Expansion patrols** across the map
 - **Expansion object patrols** at buildings, and quest bots
-- **Bots from other mods** that create Expansion AI directly, such as the convoy and the helicopter and tank patrols (being tested now)
+- **Bots from other mods** that create Expansion AI directly, such as the convoy and the helicopter and tank patrols. They get the difficulty and tactics changes, but keep their own weapons and gear.
 
 **Not affected:** bots you have recruited to follow you. Your squadmates are yours, and HiveMind leaves them alone.
 
 ## What it does NOT do
 
 - It doesn't give bots wallhacks, aimbots, or knowledge of where you are.
-- It doesn't change loot, spawns, prices, traders, or anything outside AI combat. (The rifles some bots carry can be looted from them like any bot's gear.)
+- It doesn't change loot, spawns, prices, traders, or anything outside AI combat. The only extra loot is the bounty drop from harder bots, plus the rifles some bots carry, which can be looted like any bot's gear.
 - It doesn't track player-versus-player fights.
 - It doesn't read chat, voice, or anything you type.
 - It doesn't make bots invincible or one-shot you. Every value has a hard limit set by the admins.

@@ -128,7 +128,10 @@ modded class eAIDynamicPatrol
 		string name;
 		if (m_Config)
 			name = m_Config.Name;
-		hm.TuneBot(ai, name, m_Position, true);
+		// A patrol Expansion saves across restarts is rebuilt from its save each time, and runs
+		// through here again: changing its gear then would take away what the bots carried.
+		bool fresh = !m_Config || !m_Config.Persist;
+		hm.TuneBot(ai, name, m_Position, fresh);
 	}
 };
 
@@ -139,7 +142,75 @@ modded class eAIBase
 {
 	protected bool m_AFHM_Tuned;
 	protected string m_AFHM_SwapTo;
+	protected float m_AFHM_Difficulty;
+	protected EntityAI m_AFHM_NightGear;
+	protected bool m_AFHM_NightGearRemoveOnDeath;
+	protected int m_AFHM_NightGearTries;
 
+	void AFHM_SetDifficulty(float d)
+	{
+		m_AFHM_Difficulty = d;
+	}
+
+	// The difficulty HiveMind tuned this bot at; 0 for a bot it never tuned.
+	float AFHM_GetDifficulty()
+	{
+		return m_AFHM_Difficulty;
+	}
+
+	// Night-vision goggles on a headstrap in the eyewear slot, whatever the bot wears on its
+	// head. Glasses already in that slot make way. Expansion switches the goggles on by itself
+	// at night once it is told to look again.
+	void AFHM_GiveNightVision(bool removeOnDeath)
+	{
+		m_AFHM_NightGearRemoveOnDeath = removeOnDeath;
+		m_AFHM_NightGearTries = 0;
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Call(AFHM_FitNightVision);
+	}
+
+	protected void AFHM_FitNightVision()
+	{
+		if (!IsAlive() || ++m_AFHM_NightGearTries > 3)
+			return;
+
+		EntityAI strap = GetInventory().FindAttachment(InventorySlots.EYEWEAR);
+		if (strap && !strap.IsInherited(NVGHeadstrap))
+		{
+			GetGame().ObjectDelete(strap);
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Call(AFHM_FitNightVision);
+			return;
+		}
+		if (!strap)
+			strap = GetInventory().CreateAttachment("NVGHeadstrap");
+		if (!strap)
+			return;
+
+		EntityAI goggles = strap.GetInventory().CreateAttachment("NVGoggles");
+		if (goggles)
+			goggles.GetInventory().CreateAttachment("Battery9V");
+		m_AFHM_NightGear = strap;
+		m_Expansion_TriedTurningOnVisibilityEnhancers = false;
+	}
+
+	bool AFHM_HasNightVision()
+	{
+		EntityAI strap = GetInventory().FindAttachment(InventorySlots.EYEWEAR);
+		return strap && strap.IsInherited(NVGHeadstrap) && strap.GetInventory().AttachmentCount() > 0;
+	}
+
+	override void EEKilled(Object killer)
+	{
+		super.EEKilled(killer);
+		if (GetGame().IsServer() && m_AFHM_NightGearRemoveOnDeath && m_AFHM_NightGear)
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Call(AFHM_RemoveNightGear);
+	}
+
+	protected void AFHM_RemoveNightGear()
+	{
+		if (m_AFHM_NightGear && m_AFHM_NightGear.GetHierarchyRoot() == this)
+			GetGame().ObjectDelete(m_AFHM_NightGear);
+		m_AFHM_NightGear = null;
+	}
 	void AFHM_MarkTuned()
 	{
 		m_AFHM_Tuned = true;
@@ -233,6 +304,8 @@ modded class eAIBase
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AFHM_TuneLate);
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AFHM_DropLongGuns);
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AFHM_ApplySwap);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AFHM_FitNightVision);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AFHM_RemoveNightGear);
 		super.EEDelete(parent);
 	}
 };

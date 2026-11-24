@@ -61,9 +61,13 @@ class AFHM_Config
 	float PlayerInfluenceRadius = 1200;
 	float ZoneSize = 500;
 
-	// When players kill from far away the bots' threat range grows to match, up to this.
-	float ThreatDistanceMax = 1200;
-	float ThreatDistanceMargin = 1.25;
+	// How far bots notice threats, and how far they go to check out a gunshot, scaled by
+	// difficulty like accuracy: Easy at 0, as configured at 0.5, Hard at 1. Expansion caps
+	// what a bot can see at about 1,100 m, so threat range is never set above that.
+	float ThreatScaleEasy = 0.75;
+	float ThreatScaleHard = 1.1;
+	float NoiseScaleEasy = 0.7;
+	float NoiseScaleHard = 1.3;
 
 	// Range counter: bots adapt to the range players fight at.
 	// A kill beyond LongRangeDistance counts as sniping, one within CloseRangeDistance as rushing.
@@ -78,7 +82,32 @@ class AFHM_Config
 	// How far bots swing out to flank: up to this much wider against snipers,
 	// down to this much narrower (pushing straight in) against rushers.
 	float FlankWiderMax = 1.5;
-	float FlankNarrowerMin = 0.6;};
+	float FlankNarrowerMin = 0.6;
+	// Range counter, hearing: against snipers bots go further to find a shooter they heard,
+	// against rushers they stay closer to their position.
+	float HearingWiderMax = 1.5;
+	float HearingNarrowerMin = 0.8;
+
+	// Night counter: when a large share of fights happens at night, some new patrol bots get
+	// night-vision goggles on a headstrap. NightShareStart is the night share where it starts,
+	// NightShareFull where NightGearShareMax of bots get them. With NightGearLootable false
+	// the goggles are removed when the bot dies, so they never become loot.
+	bool NightCounter = true;
+	float NightShareStart = 0.3;
+	float NightShareFull = 0.7;
+	float NightGearShareMax = 0.5;
+	bool NightGearLootable = false;
+
+	// Bounty loot: a bot tuned above BountyFromDifficulty may drop one extra item where it
+	// dies, but only when a player killed it. The chance rises to BountyChanceMax at
+	// difficulty 1, and so does the share of drops taken from the rare list.
+	bool BountyLoot = true;
+	float BountyFromDifficulty = 0.6;
+	float BountyChanceMax = 0.75;
+	float BountyRareShareMax = 0.5;
+	ref array<string> BountyCommon = {"BandageDressing", "Morphine", "Epinephrine", "AmmoBox_556x45_20Rnd", "AmmoBox_762x39_20Rnd", "AmmoBox_762x54_20Rnd", "AmmoBox_9x19_25rnd", "Mag_STANAG_30Rnd", "Mag_AKM_30Rnd"};
+	ref array<string> BountyRare = {"NVGoggles", "Rangefinder", "ACOGOptic", "PSO1Optic", "PersonalRadio", "SalineBagIV", "Mag_STANAG_60Rnd", "PlateCarrierVest"};
+};
 
 class AFHM_ZoneStats
 {
@@ -115,6 +144,9 @@ class AFHM_Brain
 	float HitsOnPlayers;
 	float LongKills;
 	float CloseKills;
+	// Lethal player-versus-bot fights that happened at night.
+	float NightFights;
+	int TotalBountyDrops;
 	// Running averages, in metres.
 	float KillDistanceAvg;
 	float KillDistanceFar;

@@ -37,7 +37,8 @@ modded class MissionGameplay
 			me.GetInputController().OverrideRaise(HumanInputControllerOverrideType.ENABLED, true);
 			// Keep the aim level: recoil would otherwise walk it up into the sky.
 			me.GetInputController().OverrideAimChangeY(HumanInputControllerOverrideType.ENABLED, 0);
-		}		else if (me && m_AFHT_Holding)
+		}
+		else if (me && m_AFHT_Holding)
 		{
 			m_AFHT_Holding = false;
 			me.GetInputController().OverrideRaise(HumanInputControllerOverrideType.DISABLED, false);

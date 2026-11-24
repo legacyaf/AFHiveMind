@@ -64,11 +64,19 @@ class AFHiveMind
 		}
 		if (!cfg.Admins)
 			cfg.Admins = new array<string>;
+		if (!cfg.BountyCommon)
+			cfg.BountyCommon = new array<string>;
+		if (!cfg.BountyRare)
+			cfg.BountyRare = new array<string>;
 		if (cfg.ZoneSize < 50)
 			cfg.ZoneSize = 50;
 		if (cfg.MemoryHalfLifeHours <= 0)
 			cfg.MemoryHalfLifeHours = 72;
 		m_Config = cfg;
+		// Write it back: a config.json from an older version gains the new settings, with
+		// their defaults, while every value the admin set is kept.
+		if (FileExist(AFHM_Const.CONFIG_PATH) && !err)
+			JsonFileLoader<AFHM_Config>.SaveFile(AFHM_Const.CONFIG_PATH, cfg, err);
 	}
 
 	protected void LoadBrain()
@@ -225,6 +233,7 @@ class AFHiveMind
 		m_Brain.HitsOnPlayers *= keep;
 		m_Brain.LongKills *= keep;
 		m_Brain.CloseKills *= keep;
+		m_Brain.NightFights *= keep;
 
 		for (int h = 0; h < m_Brain.HourActivity.Count(); h++)
 			m_Brain.HourActivity[h] = m_Brain.HourActivity[h] * keep;
@@ -293,6 +302,14 @@ class AFHiveMind
 	float RoleShare()
 	{
 		return Math.Clamp(StyleStrength() * m_Config.RoleShareMax, 0, 1);
+	}
+
+	float HearingScale()
+	{
+		float s = StyleStrength();
+		if (Style() > 0)
+			return Math.Lerp(1, m_Config.HearingWiderMax, s);
+		return Math.Lerp(1, m_Config.HearingNarrowerMin, s);
 	}
 
 	float FlankScale()
@@ -413,7 +430,9 @@ class AFHiveMind
 			m_Brain.LongKills += 1;
 		else if (dist <= m_Config.CloseRangeDistance)
 			m_Brain.CloseKills += 1;
+		NoteNight(bot);
 		NoteHour();
+		DropBounty(bot);
 		m_NewEvidence += 1;
 		m_Dirty = true;
 
@@ -435,12 +454,66 @@ class AFHiveMind
 		AFHM_PlayerStats ps = GetPlayerStats(victim);
 		ps.DeathsToBots += 1;
 
+		NoteNight(bot);
 		NoteHour();
 		m_NewEvidence += 1;
 		m_Dirty = true;
 
 		if (m_Config.DebugLevel >= 1)
 			AFHM_Util.Log("seen: a bot killed " + ps.Name + " at " + AFHM_Util.F(dist, 0) + " m in zone " + ZoneLabel(ZoneKey(victim.GetPosition())));
+	}
+
+	// Night by the bot's own reckoning: Expansion marks each bot day or night by how much
+	// daylight it sees, the same figure it uses to decide when to switch on lights and NVG.
+	protected void NoteNight(PlayerBase someBot)
+	{
+		eAIBase ai = eAIBase.Cast(someBot);
+		if (ai && ai.m_eAI_IsDay == 0)
+			m_Brain.NightFights += 1;
+	}
+
+	float NightShare()
+	{
+		return m_Brain.NightFights / (m_Brain.BotsKilledByPlayers + m_Brain.PlayersKilledByBots + 2);
+	}
+
+	float NightGearShare()
+	{
+		if (!m_Config.NightCounter || m_Brain.BotsKilledByPlayers + m_Brain.PlayersKilledByBots < m_Config.MinSamples)
+			return 0;
+		float span = Math.Max(m_Config.NightShareFull - m_Config.NightShareStart, 0.01);
+		return Math.Clamp((NightShare() - m_Config.NightShareStart) / span, 0, 1) * m_Config.NightGearShareMax;
+	}
+
+	// One extra item where a hard bot died, from the common or the rare list.
+	protected void DropBounty(PlayerBase someBot)
+	{
+		eAIBase ai = eAIBase.Cast(someBot);
+		if (!ai || !m_Config.BountyLoot)
+			return;
+		float from = m_Config.BountyFromDifficulty;
+		float strength = Math.Clamp((ai.AFHM_GetDifficulty() - from) / Math.Max(1 - from, 0.01), 0, 1);
+		if (strength <= 0 || Math.RandomFloat01() >= strength * m_Config.BountyChanceMax)
+			return;
+
+		array<string> list = m_Config.BountyCommon;
+		if (m_Config.BountyRare.Count() > 0 && Math.RandomFloat01() < strength * m_Config.BountyRareShareMax)
+			list = m_Config.BountyRare;
+		if (list.Count() == 0)
+			return;
+		string item = list.GetRandomElement();
+		if (!GetGame().ConfigIsExisting("CfgVehicles " + item) && !GetGame().ConfigIsExisting("CfgMagazines " + item) && !GetGame().ConfigIsExisting("CfgWeapons " + item))
+		{
+			AFHM_Util.Log("bounty: no item called '" + item + "' (check BountyCommon and BountyRare in config.json)");
+			return;
+		}
+		vector pos = ai.GetPosition() + Vector(Math.RandomFloat(-0.6, 0.6), 0, Math.RandomFloat(-0.6, 0.6));
+		pos[1] = GetGame().SurfaceY(pos[0], pos[2]);
+		if (!GetGame().CreateObjectEx(item, pos, ECE_PLACE_ON_SURFACE))
+			return;
+		m_Brain.TotalBountyDrops++;
+		if (m_Config.DebugLevel >= 1)
+			AFHM_Util.Log("bounty: " + item + " dropped by a bot at difficulty " + AFHM_Util.F(ai.AFHM_GetDifficulty()));
 	}
 
 	void RecordHit(PlayerBase victim, PlayerBase attacker, string dmgZone)
@@ -573,18 +646,28 @@ class AFHiveMind
 			ai.eAI_SetDamageReceivedMultiplier(recv);
 		}
 
-		// Players who kill from far away are noticed from further away.
+		// How far a bot notices threats, and how far it goes to check out a gunshot.
 		float threat = ai.m_eAI_ThreatDistanceLimit;
-		float wanted = Math.Min(m_Brain.KillDistanceFar * m_Config.ThreatDistanceMargin, m_Config.ThreatDistanceMax);
-		if (wanted > threat)
+		float threatScale = ScaleFor(d, m_Config.ThreatScaleEasy, m_Config.ThreatScaleHard);
+		if (Math.AbsFloat(threatScale - 1) >= 0.02)
 		{
-			threat = wanted;
+			threat = Math.Clamp(threat * threatScale, 100, 1100);
 			ai.eAI_SetThreatDistanceLimit(threat);
 		}
+		float hearing = ai.m_eAI_NoiseInvestigationDistanceLimit;
+		float hearingScale = ScaleFor(d, m_Config.NoiseScaleEasy, m_Config.NoiseScaleHard);
+		if (m_Config.AdaptTactics)
+			hearingScale *= HearingScale();
+		if (Math.AbsFloat(hearingScale - 1) >= 0.02 && hearing > 0)
+		{
+			hearing = Math.Max(hearing * hearingScale, 50);
+			ai.eAI_SetNoiseInvestigationDistanceLimit(hearing);
+		}
 
+		ai.AFHM_SetDifficulty(d);
 		m_Brain.TotalBotsTuned++;
 
-		string profile = "difficulty " + AFHM_Util.F(d) + " (" + why + "): accuracy " + AFHM_Util.F(accMin) + "-" + AFHM_Util.F(accMax) + ", damage x" + AFHM_Util.F(dmg) + ", takes x" + AFHM_Util.F(recv) + ", threat range " + AFHM_Util.F(threat, 0) + " m";
+		string profile = "difficulty " + AFHM_Util.F(d) + " (" + why + "): accuracy " + AFHM_Util.F(accMin) + "-" + AFHM_Util.F(accMax) + ", damage x" + AFHM_Util.F(dmg) + ", takes x" + AFHM_Util.F(recv) + ", sees " + AFHM_Util.F(threat, 0) + " m, hears " + AFHM_Util.F(hearing, 0) + " m";
 
 		// Range counter: flank wider against snipers, push straight in against rushers, and
 		// hand some patrol bots a weapon that answers the way players fight.
@@ -614,13 +697,21 @@ class AFHiveMind
 		string patrolProfile = profile;
 		if (role)
 			profile += ", role " + role;
+
+		// Night counter: night-vision goggles for some patrol bots when players fight at night.
+		if (allowRoles && Math.RandomFloat01() < NightGearShare())
+		{
+			ai.AFHM_GiveNightVision(!m_Config.NightGearLootable);
+			profile += ", night vision";
+		}
 		ai.AFHM_SetProfile(profile);
 
 		if (!patrolName)
 			patrolName = "unnamed patrol";
 		string line = patrolName + " @ " + ZoneLabel(ZoneKey(pos)) + ": " + patrolProfile;
-		// One line per patrol in the panel, not one per bot.
-		if (m_Recent.Count() == 0 || m_Recent[m_Recent.Count() - 1] != line)
+		// One line per patrol in the panel, not one per bot, even when two patrols spawn their
+		// bots at the same time and the lines arrive interleaved.
+		if (m_Recent.Find(line) == -1)
 		{
 			m_Recent.Insert(line);
 			if (m_Recent.Count() > 6)
@@ -677,8 +768,18 @@ class AFHiveMind
 
 		if (m_Brain.KillDistanceAvg > 0)
 		{
-			float wanted = Math.Min(m_Brain.KillDistanceFar * m_Config.ThreatDistanceMargin, m_Config.ThreatDistanceMax);
-			ins.Insert("Players kill from " + AFHM_Util.F(m_Brain.KillDistanceAvg, 0) + " m on average, long shots around " + AFHM_Util.F(m_Brain.KillDistanceFar, 0) + " m: bots watch out to at least " + AFHM_Util.F(wanted, 0) + " m.");
+			ins.Insert("Players kill from " + AFHM_Util.F(m_Brain.KillDistanceAvg, 0) + " m on average, long shots around " + AFHM_Util.F(m_Brain.KillDistanceFar, 0) + " m. Bots see x" + AFHM_Util.F(ScaleFor(d, m_Config.ThreatScaleEasy, m_Config.ThreatScaleHard)) + " as far and hear x" + AFHM_Util.F(ScaleFor(d, m_Config.NoiseScaleEasy, m_Config.NoiseScaleHard) * HearingScale()) + " as far as configured.");
+			if (m_Config.NightCounter && fights >= m_Config.MinSamples)
+			{
+				string night = AFHM_Util.Pct(NightShare()) + " of fights happen at night: ";
+				if (NightGearShare() > 0)
+					night += "up to " + AFHM_Util.Pct(NightGearShare()) + " of new patrol bots get night vision.";
+				else
+					night += "below " + AFHM_Util.Pct(m_Config.NightShareStart) + ", so no night vision is handed out.";
+				ins.Insert(night);
+			}
+			if (m_Config.BountyLoot && m_Brain.TotalBountyDrops > 0)
+				ins.Insert("Bounty loot dropped by hard bots so far: " + m_Brain.TotalBountyDrops.ToString() + " items.");
 		}
 
 		if (m_Brain.BotsKilledByPlayers >= m_Config.MinSamples)

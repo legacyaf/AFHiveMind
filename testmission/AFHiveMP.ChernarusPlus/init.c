@@ -192,7 +192,8 @@ class CustomMission: MissionServer
 					Print("[AFHive] FIRE START");
 					Next();
 				}
-				break;			case 2:
+				break;
+			case 2:
 				int standing;
 				foreach (eAIDynamicPatrol t: m_Targets)
 					standing += Alive(t);
@@ -276,7 +277,8 @@ class CustomMission: MissionServer
 						eAIBase raider = eAIBase.Cast(m_Raiders.m_Group.GetMember(r));
 						if (raider)
 							Print("[AFHive] raider " + r.ToString() + ": alive " + raider.IsAlive().ToString() + ", " + vector.Distance(raider.GetPosition(), m_Player.GetPosition()).ToString() + " m away, holding " + raider.GetHumanInventory().GetEntityInHands().ToString() + ", threat " + raider.m_eAI_CurrentThreatToSelfActive.ToString());
-					}					Next();
+					}
+					Next();
 				}
 				break;
 			case 10:

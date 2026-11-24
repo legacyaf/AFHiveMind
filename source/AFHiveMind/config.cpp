@@ -21,7 +21,7 @@ class CfgMods
 		name = "AF HiveMind";
 		author = "legacyaf";
 		credits = "Built on DayZ Expansion AI";
-		version = "0.1.1";
+		version = "0.2.0";
 		type = "mod";
 		inputs = "AFHiveMind/inputs.xml";
 		dependencies[] = {"Game", "World", "Mission"};

@@ -8,7 +8,7 @@ No wallhacks, no aimbots, no knowledge of where players are. HiveMind turns the 
 [list]
 [*][b]Watches player-versus-bot fights only[/b]: who won, from how far, with which weapon, where on the map and at what hour. Player-versus-player and bot-versus-bot fights are ignored.
 [*][b]Every 10 minutes[/b] it compares the share of fights players win with a target (80% by default) and nudges one difficulty figure between 0 and 1. At 0.5, bots are exactly as you configured them.
-[*][b]It forgets slowly.[/b] Old fights fade (half-life 72 hours of server uptime), so the bots follow how people play now, not last month.
+[*][b]It forgets slowly.[/b] Old fights fade (half-life 72 hours, downtime included), so the bots follow how people play now, not last month.
 [*]Until it has seen a few fights, it changes nothing.
 [/list]
 
@@ -16,10 +16,12 @@ No wallhacks, no aimbots, no knowledge of where players are. HiveMind turns the 
 [list]
 [*][b]Accuracy[/b]: from 60% to 150% of what you configured.
 [*][b]Damage dealt[/b]: from 75% to 130% of what you configured.
-[*][b]Detection range[/b]: grows when players start killing from far away (up to 1,200 m).
+[*][b]Sight and hearing[/b]: how far bots notice you (75% to 110%, never past about 1.1 km) and how far they come to check a gunshot (70% to 130%).
 [*][b]Hot zones[/b]: bots in an area players farm get a little tougher; areas where bots dominate ease off.
 [*][b]Nearby players[/b]: bots spawning near a player who rarely loses get a little tougher, and near a struggling player a little easier.
-[*][b]Range counter[/b]: if your players mostly snipe, bots flank wider and up to 40% of new patrol bots carry scoped rifles. If they mostly rush, bots push straight in and up to 40% carry automatics. Bots keep their faction's clothes and gear; only the weapon changes.
+[*][b]Range counter[/b]: if your players mostly snipe, bots flank wider and up to 40% of new patrol bots carry scoped rifles. Snipers are also hunted down from further away. If they mostly rush, bots push straight in and up to 40% carry automatics. Bots keep their faction's clothes and gear; only the weapon changes.
+[*][b]Night counter[/b]: bots without night vision are nearly blind at night. If many fights happen after dark, up to half of new patrol bots get NVGs and switch them on at dusk. The goggles are removed when the bot dies, so they never become loot.
+[*][b]Bounty loot[/b]: harder bots may drop one extra item when a player kills them (up to 75% chance), from a common list (medical, ammo, magazines) or a rare one (NVG, rangefinder, scopes, plate carrier). Tougher bots, better rewards.
 [/list]
 Every one of these limits is a setting in config.json.
 
@@ -34,8 +36,8 @@ Every one of these limits is a setting in config.json.
 [list]
 [*][b]F9 debug panel[/b] (admins only, listed by Steam64 id): current difficulty, what it has learned in plain words, and the last patrols it tuned with the reason for each number.
 [*][b]Readable files[/b] in the server profile, folder AFHiveMind: brain.json (everything it learned), report.txt (the same in plain English), hivemind.log (every fight it saw and every change of mind), config.json (all settings).
-[*]config.json is re-read every 10 minutes: change settings without a restart. Set "Enabled" to false to switch it off.
-[*]Delete brain.json to start over from "as configured".
+[*]config.json is re-read every 10 minutes: change settings without a restart. Settings added by an update appear in it automatically. Set "Enabled" to false to switch it off.
+[*]Delete brain.json to start over from "as configured". A daily backup is kept in AFHiveMind\backups (last 7).
 [*]Writes two Expansion loadouts (vanilla weapons only) for the range counter: AFHM_MarksmanWeapons and AFHM_AssaultWeapons. Edit them like any Expansion loadout.
 [/list]
 

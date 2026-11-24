@@ -1,0 +1,9 @@
+﻿[h2]0.2.0[/h2]
+[list]
+[*][b]Night counter[/b]: when many fights happen at night, up to half of new patrol bots get night-vision goggles and switch them on in the dark. The goggles are removed when the bot dies.
+[*][b]Bounty loot[/b]: bots tuned above normal difficulty may drop one extra item when a player kills them, more often and from a rarer list the harder they were. Both lists are in config.json.
+[*][b]Sight and hearing follow difficulty[/b]: how far bots notice players (x0.75 to x1.1, capped where Expansion caps visibility) and how far they go to check a gunshot (x0.7 to x1.3). Against snipers they also hunt a heard shot from further away. This replaces the old detection-range rule, which rarely did anything.
+[*]Patrols that Expansion saves across restarts keep their weapons and gear; HiveMind no longer re-arms them on each restart.
+[*]config.json is written back when read, so new settings appear in an existing file with your values kept.
+[*]The admin panel lists each patrol once, even when two patrols spawn at the same time.
+[/list]
