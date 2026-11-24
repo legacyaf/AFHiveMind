@@ -74,6 +74,16 @@ That means a skilled player roaming alone may run into stiffer resistance than a
 
 If players start landing kills from long range, bots learn to keep watch further out. They won't see through walls, but they'll react to threats at the distances you have actually been killing them from.
 
+### Bots answer how you fight
+
+HiveMind sorts every kill on a bot by range: beyond 150 m counts as sniping, within 40 m as rushing. When the community clearly leans one way, bots change their approach:
+
+- **If you mostly snipe:** bots flank up to 1.5x wider to get around your position, and up to 40% of newly spawned patrol bots carry a scoped rifle (SVD, Mosin, CZ527 or Winchester 70) instead of their usual gun.
+- **If you mostly rush:** bots push in more directly instead of swinging wide, and up to 40% of new patrol bots carry an automatic (AKM, AK74, M4A1, MP5K or UMP45).
+- **If there's no clear pattern,** nothing changes.
+
+Only the weapon changes. Bots keep their faction's clothes and gear, so a bandit still looks like a bandit. Bots riding in convoys and vehicles keep their own weapons. Like everything else, this fades over time and follows the community's current habits.
+
 ### Which bots are affected
 
 - **Expansion patrols** across the map
@@ -85,7 +95,7 @@ If players start landing kills from long range, bots learn to keep watch further
 ## What it does NOT do
 
 - It doesn't give bots wallhacks, aimbots, or knowledge of where you are.
-- It doesn't change loot, spawns, prices, traders, or anything outside AI combat.
+- It doesn't change loot, spawns, prices, traders, or anything outside AI combat. (The rifles some bots carry can be looted from them like any bot's gear.)
 - It doesn't track player-versus-player fights.
 - It doesn't read chat, voice, or anything you type.
 - It doesn't make bots invincible or one-shot you. Every value has a hard limit set by the admins.
@@ -115,7 +125,6 @@ Nothing leaves the server. It isn't shared with other servers or any outside ser
 
 These are ideas, not promises. They will be announced when they land:
 
-- **Tactics, not just difficulty.** If the community mostly snipes, more bots carry scoped rifles and flank wider. If you mostly rush, more automatics and tighter groups.
 - **Group size.** Adding or removing a bot per patrol instead of only making each one stronger.
 - **Patrol placement.** More patrols where players actually fight, and at the hours they're online.
 - **Admin controls** in the panel: freeze learning, pin a difficulty, or reset with a button.

@@ -119,7 +119,7 @@ modded class eAIDynamicPatrol
 		string name;
 		if (m_Config)
 			name = m_Config.Name;
-		hm.TuneBot(ai, name, m_Position);
+		hm.TuneBot(ai, name, m_Position, true);
 	}
 };
 
@@ -129,6 +129,7 @@ modded class eAIDynamicPatrol
 modded class eAIBase
 {
 	protected bool m_AFHM_Tuned;
+	protected string m_AFHM_SwapTo;
 
 	void AFHM_MarkTuned()
 	{
@@ -178,9 +179,51 @@ modded class eAIBase
 			hm.TuneBot(this, label, GetPosition());
 	}
 
+	// Gives the bot a weapon from another loadout, keeping its clothes and gear. Its long guns
+	// are removed first, because AI weapons are created in the hands and that fails while the
+	// hands are full. The new loadout goes on a frame later, once the removal has settled.
+	void AFHM_SwapWeapons(string loadout)
+	{
+		m_AFHM_SwapTo = loadout;
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Call(AFHM_DropLongGuns);
+	}
+
+	protected void AFHM_DropLongGuns()
+	{
+		if (!IsAlive())
+			return;
+		array<EntityAI> guns = new array<EntityAI>;
+		EntityAI inHands = GetHumanInventory().GetEntityInHands();
+		if (inHands && inHands.IsWeapon())
+			guns.Insert(inHands);
+		array<int> slots = new array<int>;
+		slots.Insert(InventorySlots.SHOULDER);
+		slots.Insert(InventorySlots.MELEE);
+		foreach (int slot: slots)
+		{
+			EntityAI carried = GetInventory().FindAttachment(slot);
+			if (carried && carried.IsWeapon() && guns.Find(carried) == -1)
+				guns.Insert(carried);
+		}
+		foreach (EntityAI gun: guns)
+			GetGame().ObjectDelete(gun);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Call(AFHM_ApplySwap);
+	}
+
+	protected void AFHM_ApplySwap()
+	{
+		if (!IsAlive() || !m_AFHM_SwapTo)
+			return;
+		if (!ExpansionHumanLoadout.Apply(this, m_AFHM_SwapTo, false))
+			AFHM_Util.Log("could not apply loadout " + m_AFHM_SwapTo + " (missing from ExpansionMod\\Loadouts?)");
+		m_AFHM_SwapTo = "";
+	}
+
 	override void EEDelete(EntityAI parent)
 	{
 		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AFHM_TuneLate);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AFHM_DropLongGuns);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AFHM_ApplySwap);
 		super.EEDelete(parent);
 	}
 };

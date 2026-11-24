@@ -27,6 +27,16 @@ Two local corrections sit on top of the global figure: bots in a 500 m zone wher
 
 Every limit above is a number in `config.json`.
 
+**Range counter.** Each bot kill is sorted by distance: beyond `LongRangeDistance` (150 m) counts as sniping, within `CloseRangeDistance` (40 m) as rushing. Once the community clearly leans one way:
+
+- Bots' flanking distance grows up to `FlankWiderMax` (x1.5) against snipers and shrinks to `FlankNarrowerMin` (x0.6) against rushers.
+- Up to `RoleShareMax` (40%) of new patrol bots swap their long gun for one from `MarksmanLoadout` or `AssaultLoadout`. Set `RoleShareMax` to 0 to keep flanking but never change weapons.
+- `AdaptTactics` switches the whole range counter off.
+
+The two loadouts, `AFHM_MarksmanWeapons.json` and `AFHM_AssaultWeapons.json`, are written once to `ExpansionMod\Loadouts` with vanilla weapons only. Edit them like any Expansion loadout, or point the config at your own. They hold weapon sets only: a bot keeps its patrol's clothes and gear. Bots from other mods (convoys, vehicle crews) get the flanking change but keep their own weapons.
+
+**Bots from other mods.** Bots that other mods create without a patrol (Moving AI Convoy, BS Patrol Helicopter and Tank) are tuned `OtherBotsDelaySeconds` (3) after they appear, from whatever their own mod set. Bots following a player are never tuned. `TuneOtherBots` switches this off.
+
 ## Files it keeps
 
 In the server profile folder, under `AFHiveMind\`:

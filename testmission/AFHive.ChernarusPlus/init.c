@@ -112,7 +112,31 @@ class CustomMission: MissionGameplay
 	}
 
 	protected eAIBase m_Lone;
-	protected eAIBase m_Follower;
+	protected eAIDynamicPatrol m_Charlie;
+
+	void ReportWeapons(string name, eAIDynamicPatrol patrol)
+	{
+		if (!patrol || !patrol.m_Group)
+		{
+			Print("[AFHive] " + name + ": no group");
+			return;
+		}
+		for (int i = 0; i < patrol.m_Group.Count(); i++)
+		{
+			eAIBase ai = eAIBase.Cast(patrol.m_Group.GetMember(i));
+			if (!ai)
+				continue;
+			string hands = "nothing";
+			EntityAI held = ai.GetHumanInventory().GetEntityInHands();
+			if (held)
+				hands = held.GetType();
+			string shoulder = "nothing";
+			EntityAI slung = ai.GetInventory().FindAttachment(InventorySlots.SHOULDER);
+			if (slung)
+				shoulder = slung.GetType();
+			Print("[AFHive] " + name + " bot " + i.ToString() + " weapons: hands " + hands + ", shoulder " + shoulder + ", flanking " + ai.m_eAI_MaxFlankingDistance.ToString() + " | " + ai.AFHM_GetProfile());
+		}
+	}	protected eAIBase m_Follower;
 
 	// Bots made the way convoy and helicopter mods make them: created directly, no patrol.
 	// The lone one must be tuned after a few seconds; the one following the player must not.
@@ -219,7 +243,10 @@ class CustomMission: MissionGameplay
 				{
 					AFHiveMind.Get().Evolve();
 					PrintReport("after the player wiped out Alpha");
-					m_Bravo = SpawnPatrol("Bravo", 4, "30 0 50");
+					// Alpha died at close range, so the bots should lean to automatics. The test
+					// raises the share so that every Bravo bot swaps and the result is certain.
+					Print("[AFHive] style after Alpha: " + AFHiveMind.Get().Style().ToString() + ", role share " + AFHiveMind.Get().RoleShare().ToString() + ", flank x" + AFHiveMind.Get().FlankScale().ToString());
+					AFHiveMind.Get().m_Config.RoleShareMax = 5;					m_Bravo = SpawnPatrol("Bravo", 4, "30 0 50");
 					Next();
 				}
 				break;
@@ -228,7 +255,13 @@ class CustomMission: MissionGameplay
 				{
 					ReportPatrol("Bravo", m_Bravo);
 					SpawnLoneBots();
-					AFHM_ShowPanel(true);
+					// Now pretend the community snipes: Charlie should get marksman rifles.
+					AFHiveMind hmc = AFHiveMind.Get();
+					hmc.m_Brain.LongKills = 20;
+					hmc.m_Brain.CloseKills = 0;
+					hmc.m_Brain.BotsKilledByPlayers = 26;
+					Print("[AFHive] style forced to snipers: " + hmc.Style().ToString() + ", role share " + hmc.RoleShare().ToString() + ", flank x" + hmc.FlankScale().ToString());
+					m_Charlie = SpawnPatrol("Charlie", 3, "-40 0 60");					AFHM_ShowPanel(true);
 					Next();
 				}
 				break;
@@ -236,6 +269,8 @@ class CustomMission: MissionGameplay
 				if (m_HiveStepTime >= 5)
 				{
 					ReportLoneBots();
+					ReportWeapons("Bravo", m_Bravo);
+					ReportWeapons("Charlie", m_Charlie);
 					Print("[AFHive] SHOT panel_after_learning");
 					Next();
 				}

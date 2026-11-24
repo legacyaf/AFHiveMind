@@ -32,17 +32,17 @@ New-Item -ItemType Directory -Force $out, $profiles | Out-Null
 Remove-Item (Join-Path $out '*.jpg') -ErrorAction SilentlyContinue
 if ($Fresh) { Remove-Item (Join-Path $profiles 'AFHiveMind') -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue }
 
-Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:$false
-Start-Sleep 2
+# DayZ on this PC is shared with other work: never close a game this script did not start.
+if (Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue) { throw 'DayZDiag is already running (someone else may be using it). Not starting the test.' }
 $start = Get-Date
-Start-Process (Join-Path $dayz 'DayZDiag_x64.exe') -WorkingDirectory $dayz -ArgumentList @(
+$game = Start-Process -PassThru (Join-Path $dayz 'DayZDiag_x64.exe') -WorkingDirectory $dayz -ArgumentList @(
     """-mission=$here\AFHive.ChernarusPlus""", """-mod=$($mods -join ';')""", """-profiles=$profiles""",
     '-window', '-nosplash', '-noPause', '-scriptDebug=true')
 
 function Save-Window($name) {
-    $proc = Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-    if (-not $proc) { return $false }
-    $h = $proc.MainWindowHandle
+    $game.Refresh()
+    $h = $game.MainWindowHandle
+    if ($h -eq 0) { return $false }
     $r = New-Object AFWin+RECT; [AFWin]::GetClientRect($h, [ref]$r) | Out-Null
     $w = $r.R - $r.L; $hgt = $r.B - $r.T
     if ($w -lt 100 -or $hgt -lt 100) { return $false }
@@ -76,9 +76,9 @@ while ((Get-Date) -lt $deadline -and -not $done) {
         if ($text -match 'TOUR DONE') { $done = $true }
         if ($text -match 'ompile error|Can.t compile') { break }
     }
-    if (-not (Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue) -and ((Get-Date) - $start).TotalSeconds -gt 20) { 'DayZ exited'; break }
+    if ($game.HasExited) { 'DayZ exited'; break }
     Start-Sleep -Milliseconds 300
 }
 ($text -split "`r?`n" | Select-String '\[AFHive\]|\[AFHiveMind\]|ompile|SCRIPT\s+\(E\)|SCRIPT ERROR').Line
 "test finished: $done; pictures: $($seen.Count)"
-Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:$false
+if (-not $game.HasExited) { Stop-Process -Id $game.Id -Force -Confirm:$false }

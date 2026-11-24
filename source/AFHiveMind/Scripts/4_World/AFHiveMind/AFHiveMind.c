@@ -33,6 +33,7 @@ class AFHiveMind
 
 		LoadConfig();
 		LoadBrain();
+		AFHM_Loadouts.WriteDefaults();
 
 		float now = GetGame().GetTickTime();
 		m_LastEvolve = now;
@@ -189,6 +190,8 @@ class AFHiveMind
 		m_Brain.HitsOnBots *= keep;
 		m_Brain.HeadHitsOnBots *= keep;
 		m_Brain.HitsOnPlayers *= keep;
+		m_Brain.LongKills *= keep;
+		m_Brain.CloseKills *= keep;
 
 		for (int h = 0; h < m_Brain.HourActivity.Count(); h++)
 			m_Brain.HourActivity[h] = m_Brain.HourActivity[h] * keep;
@@ -236,6 +239,35 @@ class AFHiveMind
 	{
 		float prior = 4;
 		return (botsKilled + prior * m_Config.TargetPlayerWinRate) / (botsKilled + playersKilled + prior);
+	}
+
+	// How players fight, from -1 (all close-range kills) to +1 (all long-range kills).
+	// Mid-range kills pull it towards 0, and two imagined mid-range kills keep a handful of
+	// fights from deciding it.
+	float Style()
+	{
+		return (m_Brain.LongKills - m_Brain.CloseKills) / (m_Brain.BotsKilledByPlayers + 2);
+	}
+
+	// 0 while the style is within +-0.25 of neutral, rising to 1 at a clear +-1.
+	float StyleStrength()
+	{
+		if (m_Brain.BotsKilledByPlayers < m_Config.MinSamples)
+			return 0;
+		return Math.Clamp((Math.AbsFloat(Style()) - 0.25) / 0.75, 0, 1);
+	}
+
+	float RoleShare()
+	{
+		return Math.Clamp(StyleStrength() * m_Config.RoleShareMax, 0, 1);
+	}
+
+	float FlankScale()
+	{
+		float s = StyleStrength();
+		if (Style() > 0)
+			return Math.Lerp(1, m_Config.FlankWiderMax, s);
+		return Math.Lerp(1, m_Config.FlankNarrowerMin, s);
 	}
 
 	// Difficulty 0..1 to a multiplier: lo at 0, 1 at 0.5, hi at 1.
@@ -344,7 +376,10 @@ class AFHiveMind
 			ps.KillDistanceAvg = Math.Lerp(ps.KillDistanceAvg, dist, 0.15);
 		if (bot.AFHM_GetLastHitZone() == "Head")
 			ps.HeadshotKills += 1;
-
+		if (dist >= m_Config.LongRangeDistance)
+			m_Brain.LongKills += 1;
+		else if (dist <= m_Config.CloseRangeDistance)
+			m_Brain.CloseKills += 1;
 		NoteHour();
 		m_NewEvidence += 1;
 		m_Dirty = true;
@@ -468,7 +503,7 @@ class AFHiveMind
 
 	// Called for every bot a patrol spawns, after Expansion applied the patrol's own settings,
 	// and (see eAIBase.AFHM_TuneLate) for bots other mods create without a patrol.
-	void TuneBot(eAIBase ai, string patrolName, vector pos)
+	void TuneBot(eAIBase ai, string patrolName, vector pos, bool allowRoles = false)
 	{
 		if (!m_Config.Enabled || !ai)
 			return;
@@ -517,11 +552,40 @@ class AFHiveMind
 		m_Brain.TotalBotsTuned++;
 
 		string profile = "difficulty " + AFHM_Util.F(d) + " (" + why + "): accuracy " + AFHM_Util.F(accMin) + "-" + AFHM_Util.F(accMax) + ", damage x" + AFHM_Util.F(dmg) + ", takes x" + AFHM_Util.F(recv) + ", threat range " + AFHM_Util.F(threat, 0) + " m";
+
+		// Range counter: flank wider against snipers, push straight in against rushers, and
+		// hand some patrol bots a weapon that answers the way players fight.
+		string role;
+		if (m_Config.AdaptTactics && StyleStrength() > 0)
+		{
+			float flankScale = FlankScale();
+			if (Math.AbsFloat(flankScale - 1) >= 0.02 && ai.m_eAI_MaxFlankingDistance > 0)
+			{
+				float flank = ai.m_eAI_MaxFlankingDistance * flankScale;
+				ai.eAI_SetMaxFlankingDistance(flank);
+				profile += ", flanking " + AFHM_Util.F(flank, 0) + " m";
+			}
+
+			string loadout = m_Config.AssaultLoadout;
+			role = "assault";
+			if (Style() > 0)
+			{
+				loadout = m_Config.MarksmanLoadout;
+				role = "marksman";
+			}
+			if (allowRoles && loadout && Math.RandomFloat01() < RoleShare())
+				ai.AFHM_SwapWeapons(loadout);
+			else
+				role = "";
+		}
+		string patrolProfile = profile;
+		if (role)
+			profile += ", role " + role;
 		ai.AFHM_SetProfile(profile);
 
 		if (!patrolName)
 			patrolName = "unnamed patrol";
-		string line = patrolName + " @ " + ZoneLabel(ZoneKey(pos)) + ": " + profile;
+		string line = patrolName + " @ " + ZoneLabel(ZoneKey(pos)) + ": " + patrolProfile;
 		// One line per patrol in the panel, not one per bot.
 		if (m_Recent.Count() == 0 || m_Recent[m_Recent.Count() - 1] != line)
 		{
@@ -531,7 +595,7 @@ class AFHiveMind
 		}
 
 		if (m_Config.DebugLevel >= 2)
-			AFHM_Util.Log("tuned: " + line);
+			AFHM_Util.Log("tuned: " + patrolName + " bot: " + profile);
 	}
 
 	// ------------------------------------------------------------------ what it reports
@@ -582,6 +646,19 @@ class AFHiveMind
 		{
 			float wanted = Math.Min(m_Brain.KillDistanceFar * m_Config.ThreatDistanceMargin, m_Config.ThreatDistanceMax);
 			ins.Insert("Players kill from " + AFHM_Util.F(m_Brain.KillDistanceAvg, 0) + " m on average, long shots around " + AFHM_Util.F(m_Brain.KillDistanceFar, 0) + " m: bots watch out to at least " + AFHM_Util.F(wanted, 0) + " m.");
+		}
+
+		if (m_Brain.BotsKilledByPlayers >= m_Config.MinSamples)
+		{
+			float kills = m_Brain.BotsKilledByPlayers;
+			string range = "Players kill " + AFHM_Util.Pct(m_Brain.LongKills / kills) + " of bots beyond " + AFHM_Util.F(m_Config.LongRangeDistance, 0) + " m and " + AFHM_Util.Pct(m_Brain.CloseKills / kills) + " within " + AFHM_Util.F(m_Config.CloseRangeDistance, 0) + " m: ";
+			if (!m_Config.AdaptTactics || StyleStrength() <= 0)
+				range += "no clear style, tactics unchanged.";
+			else if (Style() > 0)
+				range += "snipers. Bots flank x" + AFHM_Util.F(FlankScale()) + " as wide and up to " + AFHM_Util.Pct(RoleShare()) + " carry marksman rifles.";
+			else
+				range += "rushers. Bots flank x" + AFHM_Util.F(FlankScale()) + " as wide and up to " + AFHM_Util.Pct(RoleShare()) + " carry automatics.";
+			ins.Insert(range);
 		}
 
 		if (m_Brain.HitsOnBots >= 5)

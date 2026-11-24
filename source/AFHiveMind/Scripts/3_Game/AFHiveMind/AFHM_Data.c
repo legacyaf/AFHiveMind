@@ -62,7 +62,21 @@ class AFHM_Config
 	// When players kill from far away the bots' threat range grows to match, up to this.
 	float ThreatDistanceMax = 1200;
 	float ThreatDistanceMargin = 1.25;
-};
+
+	// Range counter: bots adapt to the range players fight at.
+	// A kill beyond LongRangeDistance counts as sniping, one within CloseRangeDistance as rushing.
+	bool AdaptTactics = true;
+	float LongRangeDistance = 150;
+	float CloseRangeDistance = 40;
+	// When the community clearly snipes (or rushes), up to this share of new patrol bots swap
+	// their long gun for one from MarksmanLoadout (or AssaultLoadout). 0 switches weapons off.
+	float RoleShareMax = 0.4;
+	string MarksmanLoadout = "AFHM_MarksmanWeapons";
+	string AssaultLoadout = "AFHM_AssaultWeapons";
+	// How far bots swing out to flank: up to this much wider against snipers,
+	// down to this much narrower (pushing straight in) against rushers.
+	float FlankWiderMax = 1.5;
+	float FlankNarrowerMin = 0.6;};
 
 class AFHM_ZoneStats
 {
@@ -95,7 +109,8 @@ class AFHM_Brain
 	float HitsOnBots;
 	float HeadHitsOnBots;
 	float HitsOnPlayers;
-
+	float LongKills;
+	float CloseKills;
 	// Running averages, in metres.
 	float KillDistanceAvg;
 	float KillDistanceFar;
