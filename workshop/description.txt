@@ -1,0 +1,63 @@
+[h1]AF HiveMind - AI that learns how you fight[/h1]
+
+HiveMind sits on top of [b]DayZ Expansion AI[/b]. It watches every fight between players and AI bots, keeps a memory of how those fights go, and tunes newly spawned bots from what it has learned. If players farm the bots, they get sharper. If the bots dominate, they ease off. The goal: fights against AI stay challenging but winnable, whether your server is full of veterans or fresh spawns.
+
+No wallhacks, no aimbots, no knowledge of where players are. HiveMind turns the same dials an admin would turn by hand, only it keeps doing it, based on how your community actually plays.
+
+[h2]How it learns[/h2]
+[list]
+[*][b]Watches player-versus-bot fights only[/b]: who won, from how far, with which weapon, where on the map and at what hour. Player-versus-player and bot-versus-bot fights are ignored.
+[*][b]Every 10 minutes[/b] it compares the share of fights players win with a target (80% by default) and nudges one difficulty figure between 0 and 1. At 0.5, bots are exactly as you configured them.
+[*][b]It forgets slowly.[/b] Old fights fade (half-life 72 hours of server uptime), so the bots follow how people play now, not last month.
+[*]Until it has seen a few fights, it changes nothing.
+[/list]
+
+[h2]What it changes[/h2]
+[list]
+[*][b]Accuracy[/b]: from 60% to 150% of what you configured.
+[*][b]Damage dealt[/b]: from 75% to 130% of what you configured.
+[*][b]Detection range[/b]: grows when players start killing from far away (up to 1,200 m).
+[*][b]Hot zones[/b]: bots in an area players farm get a little tougher; areas where bots dominate ease off.
+[*][b]Nearby players[/b]: bots spawning near a player who rarely loses get a little tougher, and near a struggling player a little easier.
+[*][b]Range counter[/b]: if your players mostly snipe, bots flank wider and up to 40% of new patrol bots carry scoped rifles. If they mostly rush, bots push straight in and up to 40% carry automatics. Bots keep their faction's clothes and gear; only the weapon changes.
+[/list]
+Every one of these limits is a setting in config.json.
+
+[h2]Which bots[/h2]
+[list]
+[*]Expansion patrols, object patrols and quest bots
+[*]Bots other mods create directly from Expansion AI, such as convoy, helicopter and tank patrol mods
+[*][b]Not[/b] bots a player has recruited to follow them
+[/list]
+
+[h2]For admins[/h2]
+[list]
+[*][b]F9 debug panel[/b] (admins only, listed by Steam64 id): current difficulty, what it has learned in plain words, and the last patrols it tuned with the reason for each number.
+[*][b]Readable files[/b] in the server profile, folder AFHiveMind: brain.json (everything it learned), report.txt (the same in plain English), hivemind.log (every fight it saw and every change of mind), config.json (all settings).
+[*]config.json is re-read every 10 minutes: change settings without a restart. Set "Enabled" to false to switch it off.
+[*]Delete brain.json to start over from "as configured".
+[*]Writes two Expansion loadouts (vanilla weapons only) for the range counter: AFHM_MarksmanWeapons and AFHM_AssaultWeapons. Edit them like any Expansion loadout.
+[/list]
+
+[h2]Requirements[/h2]
+[list]
+[*]Community Framework
+[*]Dabs Framework
+[*]DayZ-Expansion-Core
+[*]DayZ-Expansion-AI
+[/list]
+
+[h2]Installing[/h2]
+[list]
+[*][b]Server only:[/b] load @AFHiveMind with -serverMod=. Players download nothing. Use report.txt and hivemind.log instead of the panel.
+[*][b]With the F9 panel:[/b] load it with -mod= on server and clients, and copy the key from Keys to your server's keys folder.
+[*]Start the server once to create AFHiveMind\config.json in the server profile, then add your Steam64 id under "Admins" to use the panel.
+[/list]
+
+[h2]Player data[/h2]
+For each player who fights bots, HiveMind stores their name, Steam ID, bots killed, deaths to bots and average kill distance, in a file on the server only. Nothing is sent anywhere. Entries fade and are removed when a player stops fighting bots.
+
+[h2]Status[/h2]
+Early version. Feedback and bug reports are welcome in the comments.
+
+Made by AF (Allied Forces).

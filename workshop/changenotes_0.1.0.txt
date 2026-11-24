@@ -1,0 +1,9 @@
+[h2]0.1.0 - first release[/h2]
+[list]
+[*]Learns from player-versus-bot fights and adjusts one difficulty figure every 10 minutes towards a target player win rate (80% by default). Old fights fade with a 72-hour half-life.
+[*]Tunes bot accuracy, damage dealt and detection range at spawn, with extra adjustments for hot zones and for players near the spawn.
+[*]Range counter: against snipers bots flank wider and some carry scoped rifles; against rushers they push in and some carry automatics. Bots keep their own clothes and gear.
+[*]Tunes bots that other mods create directly from Expansion AI (convoys, helicopter and tank patrols). Bots following a player are left alone.
+[*]Admin F9 debug panel, plus brain.json, report.txt and hivemind.log in the server profile.
+[*]Every limit is a setting in config.json, re-read every 10 minutes.
+[/list]
