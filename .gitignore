@@ -9,3 +9,4 @@ testmission/captures/
 testmission/*/expansion/
 testmission/*/storage_*/
 testmission/run_mp/
+dist/
