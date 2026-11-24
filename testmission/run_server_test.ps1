@@ -32,8 +32,8 @@ $srvProf  = Join-Path $here 'profiles_server'
 $cliProf  = Join-Path $here 'profiles_client'
 $out      = Join-Path $here 'captures'
 
-Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:$false
-Start-Sleep 2
+# DayZ on this PC is shared with other work: never close a game this script did not start.
+if (Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue) { throw 'DayZDiag is already running (someone else may be using it). Not starting the test.' }
 
 # The helper mod: scripts only, packed as they are, never signed.
 $helper = Join-Path $here '@AFHiveTest\Addons'
@@ -145,4 +145,4 @@ while ((Get-Date) -lt $deadline -and -not $done) {
 '--- client'
 ((Read-Log $cliProf) -split "`r?`n" | Select-String '\[AFHiveTest\]|ompile|SCRIPT\s+\(E\): @').Line
 "test finished: $done; pictures: $($seen.Count); mouse clicks sent: $clicks"
-Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:$false
+foreach ($own in @($client, $server)) { if ($own -and -not $own.HasExited) { Stop-Process -Id $own.Id -Force -Confirm:$false } }
