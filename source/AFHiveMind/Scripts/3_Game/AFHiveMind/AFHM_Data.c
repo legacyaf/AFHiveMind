@@ -10,6 +10,8 @@ class AFHM_Const
 	static const string CONFIG_PATH = "$profile:AFHiveMind/config.json";
 	static const string BRAIN_PATH = "$profile:AFHiveMind/brain.json";
 	static const string REPORT_PATH = "$profile:AFHiveMind/report.txt";
+	static const string BACKUP_DIR = "$profile:AFHiveMind/backups";
+	static const int BACKUPS_KEPT = 7;
 	static const string LOG_PATH = "$profile:AFHiveMind/hivemind.log";
 
 	static const int BRAIN_VERSION = 1;
@@ -98,6 +100,8 @@ class AFHM_Brain
 {
 	int Version = AFHM_Const.BRAIN_VERSION;
 	int Generation;
+	// Real-world time (UTC, seconds) memory was last faded to, so downtime counts too.
+	int LastFadeTimestamp;
 	string LastUpdated;
 
 	// What it currently believes. 0 = easiest bots, 0.5 = as configured, 1 = hardest.

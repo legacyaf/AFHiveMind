@@ -97,6 +97,8 @@ class AFHiveMind
 		string err;
 		if (!JsonFileLoader<AFHM_Brain>.SaveFile(AFHM_Const.BRAIN_PATH, m_Brain, err))
 			AFHM_Util.Log("brain.json could not be written: " + err);
+		else
+			Backup();
 
 		FileHandle f = OpenFile(AFHM_Const.REPORT_PATH, FileMode.WRITE);
 		if (f != 0)
@@ -108,6 +110,33 @@ class AFHiveMind
 		}
 		m_Dirty = false;
 		m_LastSave = GetGame().GetTickTime();
+	}
+
+	// One copy of brain.json per day in AFHiveMind\backups, the newest BACKUPS_KEPT kept.
+	// To roll back: stop the server and copy a backup over brain.json.
+	protected void Backup()
+	{
+		if (!FileExist(AFHM_Const.BACKUP_DIR))
+			MakeDirectory(AFHM_Const.BACKUP_DIR);
+		string today = AFHM_Const.BACKUP_DIR + "/brain_" + AFHM_Util.Now().Substring(0, 10) + ".json";
+		if (FileExist(today))
+			return;
+		CopyFile(AFHM_Const.BRAIN_PATH, today);
+
+		array<string> names = new array<string>;
+		string name;
+		FileAttr attr;
+		FindFileHandle find = FindFile(AFHM_Const.BACKUP_DIR + "/brain_*.json", name, attr, FindFileFlags.ALL);
+		if (find)
+		{
+			names.Insert(name);
+			while (FindNextFile(find, name, attr))
+				names.Insert(name);
+			CloseFindFile(find);
+		}
+		names.Sort();
+		for (int i = 0; i < names.Count() - AFHM_Const.BACKUPS_KEPT; i++)
+			DeleteFile(AFHM_Const.BACKUP_DIR + "/" + names[i]);
 	}
 
 	// ------------------------------------------------------------------ clock
@@ -147,14 +176,18 @@ class AFHiveMind
 	// One step of learning: forget a little, compare the win rate with the target, shift difficulty.
 	void Evolve()
 	{
-		float now = GetGame().GetTickTime();
-		float hours = (now - m_LastEvolve) / 3600;
-		m_LastEvolve = now;
+		m_LastEvolve = GetGame().GetTickTime();
 
 		LoadConfig();
 		if (!m_Config.Enabled)
 			return;
 
+		// Fade by real time since the last fade, so days the server was down count as well.
+		int stamp = ExpansionStatic.GetTimestamp(true);
+		if (m_Brain.LastFadeTimestamp <= 0 || stamp < m_Brain.LastFadeTimestamp)
+			m_Brain.LastFadeTimestamp = stamp;
+		float hours = (stamp - m_Brain.LastFadeTimestamp) / 3600.0;
+		m_Brain.LastFadeTimestamp = stamp;
 		Decay(Math.Pow(0.5, hours / m_Config.MemoryHalfLifeHours));
 
 		float fights = m_Brain.BotsKilledByPlayers + m_Brain.PlayersKilledByBots;

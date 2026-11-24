@@ -1,0 +1,6 @@
+﻿[h2]0.1.1[/h2]
+[list]
+[*]Memory now fades by real time, so days the server was down count too.
+[*]brain.json is backed up once a day to AFHiveMind\backups (the last 7 are kept). To roll back, stop the server and copy a backup over brain.json.
+[*]Running a bot over with a vehicle now counts as the driver's kill, and a bot running a player over counts too (vanilla vehicles).
+[/list]

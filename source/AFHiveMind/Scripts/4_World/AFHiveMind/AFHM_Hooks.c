@@ -28,6 +28,15 @@ modded class PlayerBase
 		EntityAI entity = EntityAI.Cast(source);
 		if (!entity)
 			return null;
+		// Run over by a vehicle: the driver did it.
+		Transport vehicle = Transport.Cast(entity);
+		if (vehicle)
+		{
+			PlayerBase driver = PlayerBase.Cast(vehicle.CrewMember(DayZPlayerConstants.VEHICLESEAT_DRIVER));
+			if (driver == this)
+				return null;
+			return driver;
+		}
 		PlayerBase other = PlayerBase.Cast(entity.GetHierarchyRootPlayer());
 		if (other == this)
 			return null;

@@ -301,6 +301,9 @@ class CustomMission: MissionGameplay
 				{
 					AFHiveMind.Get().Evolve();
 					PrintReport("at the end");
+					AFHiveMind.Get().Save();
+					string backup = AFHM_Const.BACKUP_DIR + "/brain_" + AFHM_Util.Now().Substring(0, 10) + ".json";
+					Print("[AFHive] memory last faded at " + AFHiveMind.Get().m_Brain.LastFadeTimestamp.ToString() + " (now " + ExpansionStatic.GetTimestamp(true).ToString() + "), today's backup exists: " + FileExist(backup).ToString());
 					Next();
 				}
 				break;
