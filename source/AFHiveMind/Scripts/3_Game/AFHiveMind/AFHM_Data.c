@@ -26,6 +26,11 @@ class AFHM_Config
 	// Steam64 ids allowed to open the in-game debug panel. Offline play always may.
 	ref array<string> Admins = new array<string>;
 
+	// Bots that do not come from an Expansion patrol (convoys, helicopter and tank patrols and
+	// other mods that create Expansion bots themselves) are tuned this many seconds after they
+	// appear, from whatever their own mod set by then. Bots led by a player are never tuned.
+	bool TuneOtherBots = true;
+	float OtherBotsDelaySeconds = 3;
 	int SaveIntervalSeconds = 120;
 	int EvolveIntervalSeconds = 600;
 	// Old habits fade: after this many hours of server uptime a recorded fight counts half.

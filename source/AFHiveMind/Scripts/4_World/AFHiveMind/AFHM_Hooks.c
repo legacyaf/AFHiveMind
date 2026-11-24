@@ -122,3 +122,65 @@ modded class eAIDynamicPatrol
 		hm.TuneBot(ai, name, m_Position);
 	}
 };
+
+// Bots that no patrol tunes: other mods (Moving AI Convoy, BS Patrol Helicopter and Tank, ...)
+// create Expansion bots directly. Each bot gets a few seconds for its own mod to set it up;
+// if no patrol has tuned it by then, it is tuned from whatever values it ended up with.
+modded class eAIBase
+{
+	protected bool m_AFHM_Tuned;
+
+	void AFHM_MarkTuned()
+	{
+		m_AFHM_Tuned = true;
+	}
+
+	bool AFHM_IsTuned()
+	{
+		return m_AFHM_Tuned;
+	}
+
+	override void Init()
+	{
+		super.Init();
+
+		if (!GetGame().IsServer())
+			return;
+		AFHiveMind hm = AFHiveMind.Get();
+		if (!hm || !hm.m_Config.Enabled || !hm.m_Config.TuneOtherBots)
+			return;
+		int delay = Math.Max(hm.m_Config.OtherBotsDelaySeconds, 0.5) * 1000;
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(AFHM_TuneLate, delay, false);
+	}
+
+	void AFHM_TuneLate()
+	{
+		if (m_AFHM_Tuned || !IsAlive())
+			return;
+
+		// A bot following a player (Expansion's recruit feature) is the player's, not an enemy.
+		string label = "bot from another mod (" + GetType() + ")";
+		eAIGroup group = GetGroup();
+		if (group)
+		{
+			DayZPlayerImplement leader = group.GetLeader();
+			if (leader && !leader.IsAI())
+			{
+				m_AFHM_Tuned = true;
+				return;
+			}
+			if (group.GetName())
+				label = group.GetName();
+		}
+
+		AFHiveMind hm = AFHiveMind.Get();
+		if (hm)
+			hm.TuneBot(this, label, GetPosition());
+	}
+
+	override void EEDelete(EntityAI parent)
+	{
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AFHM_TuneLate);
+		super.EEDelete(parent);
+	}
+};

@@ -466,11 +466,13 @@ class AFHiveMind
 		return best;
 	}
 
-	// Called for every bot a patrol spawns, after Expansion applied the patrol's own settings.
+	// Called for every bot a patrol spawns, after Expansion applied the patrol's own settings,
+	// and (see eAIBase.AFHM_TuneLate) for bots other mods create without a patrol.
 	void TuneBot(eAIBase ai, string patrolName, vector pos)
 	{
 		if (!m_Config.Enabled || !ai)
 			return;
+		ai.AFHM_MarkTuned();
 
 		string why;
 		float d = DifficultyAt(pos, why);

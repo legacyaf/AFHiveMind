@@ -111,6 +111,40 @@ class CustomMission: MissionGameplay
 		Print("[AFHive] player alive after that: " + g_HivePlayer.IsAlive().ToString());
 	}
 
+	protected eAIBase m_Lone;
+	protected eAIBase m_Follower;
+
+	// Bots made the way convoy and helicopter mods make them: created directly, no patrol.
+	// The lone one must be tuned after a few seconds; the one following the player must not.
+	void SpawnLoneBots()
+	{
+		vector pos = g_HivePos + "-20 0 30";
+		pos[1] = GetGame().SurfaceY(pos[0], pos[2]);
+		m_Lone = eAIBase.Cast(GetGame().CreateObject("eAI_SurvivorM_Boris", pos));
+		if (m_Lone)
+		{
+			eAIGroup convoy = eAIGroup.CreateGroup(eAIFaction.Create("Raiders"));
+			convoy.SetName("Test convoy");
+			m_Lone.SetGroup(convoy);
+		}
+
+		pos = g_HivePos + "3 0 -3";
+		pos[1] = GetGame().SurfaceY(pos[0], pos[2]);
+		m_Follower = eAIBase.Cast(GetGame().CreateObject("eAI_SurvivorM_Denis", pos));
+		if (m_Follower)
+			m_Follower.SetGroup(eAIGroup.GetGroupByLeader(g_HivePlayer));
+
+		Print("[AFHive] lone bots created: convoy " + m_Lone.ToString() + ", follower " + m_Follower.ToString() + "; tuned right away: " + m_Lone.AFHM_IsTuned().ToString() + " / " + m_Follower.AFHM_IsTuned().ToString());
+	}
+
+	void ReportLoneBots()
+	{
+		if (m_Lone)
+			Print("[AFHive] convoy bot after the wait: tuned " + m_Lone.AFHM_IsTuned().ToString() + ", accuracy " + m_Lone.m_eAI_AccuracyMin.ToString() + "-" + m_Lone.m_eAI_AccuracyMax.ToString() + " | hivemind: " + m_Lone.AFHM_GetProfile());
+		if (m_Follower)
+			Print("[AFHive] follower bot after the wait: leader is the player " + (m_Follower.GetGroup().GetLeader() == g_HivePlayer).ToString() + ", accuracy " + m_Follower.m_eAI_AccuracyMin.ToString() + "-" + m_Follower.m_eAI_AccuracyMax.ToString() + ", profile '" + m_Follower.AFHM_GetProfile() + "'");
+	}
+
 	void PrintReport(string label)
 	{
 		AFHiveMind hm = AFHiveMind.Get();
@@ -193,6 +227,7 @@ class CustomMission: MissionGameplay
 				if (m_HiveStepTime >= 6)
 				{
 					ReportPatrol("Bravo", m_Bravo);
+					SpawnLoneBots();
 					AFHM_ShowPanel(true);
 					Next();
 				}
@@ -200,6 +235,7 @@ class CustomMission: MissionGameplay
 			case 3:
 				if (m_HiveStepTime >= 5)
 				{
+					ReportLoneBots();
 					Print("[AFHive] SHOT panel_after_learning");
 					Next();
 				}
