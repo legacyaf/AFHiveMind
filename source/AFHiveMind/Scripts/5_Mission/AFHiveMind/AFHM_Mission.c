@@ -172,11 +172,28 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		AddButton("Pin -0.05", "pin_down", 1, row2);
 		AddButton("Pin +0.05", "pin_up", 2, row2);
 		AddButton("Unpin", "unpin", 3, row2);
-		layoutRoot.SetSize(660, row2 + BUTTON_HEIGHT + 12);
+		int height = row2 + BUTTON_HEIGHT + 12;
+		layoutRoot.SetSize(660, height);
+		// In the middle of the screen, clear of the F9 panel's corner.
+		int screenW;
+		int screenH;
+		GetScreenSize(screenW, screenH);
+		layoutRoot.SetPos(Math.Max((screenW - 660) / 2, 0), Math.Max((screenH - height) / 2, 0));
 
-		array<string> waiting = new array<string>;
-		waiting.Insert("AF HiveMind: asking the server...");
-		SetRows(waiting);
+		// Show the last report at once, if there is one, while a fresh one is asked for.
+		if (AFHM_ClientState.s_Report.Count() > 0)
+		{
+			SetRows(AFHM_ClientState.s_Report);
+		}
+		else
+		{
+			array<string> waiting = new array<string>;
+			waiting.Insert("AF HiveMind: asking the server...");
+			SetRows(waiting);
+		}
+		m_Stamp = AFHM_ClientState.s_Stamp;
+		AFHM_Client.RequestReport();
+		m_Refresh = 3;
 		return layoutRoot;
 	}
 
@@ -355,6 +372,10 @@ modded class MissionGameplay
 				Print("[AFHiveMind] F10: admin controls opened");
 			}
 		}
+
+		// The F9 panel stays closed while the admin controls are open.
+		if (m_AFHM_Panel && m_AFHM_Controls && GetGame().GetUIManager().GetMenu() == m_AFHM_Controls)
+			AFHM_ShowPanel(false);
 
 		if (!m_AFHM_Panel)
 			return;
