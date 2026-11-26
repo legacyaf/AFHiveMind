@@ -127,6 +127,8 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	protected static const int BUTTON_HEIGHT = 28;
 	protected static const int GAP = 8;
 	protected static const string PREFIX = "AFHM_cmd_";
+	// Its own menu id, so the UI manager does not mistake it for another menu.
+	static const int MENU_ID = 874410010;
 
 	protected ref array<TextWidget> m_Lines = new array<TextWidget>;
 	protected ref AFHM_ControlsHandler m_Handler;
@@ -135,6 +137,11 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	protected float m_Refresh;
 	protected float m_Age;
 	protected int m_Stamp = -1;
+
+	override int GetID()
+	{
+		return MENU_ID;
+	}
 
 	override Widget Init()
 	{
@@ -209,6 +216,7 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	override void OnShow()
 	{
 		super.OnShow();
+		Print("[AFHiveMind] admin controls shown");
 		GetGame().GetInput().ChangeGameFocus(1);
 		GetGame().GetUIManager().ShowUICursor(true);
 		GetGame().GetMission().PlayerControlDisable(INPUT_EXCLUDE_ALL);
@@ -217,7 +225,8 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	override void OnHide()
 	{
 		super.OnHide();
-		GetGame().GetInput().ResetGameFocus();
+		Print("[AFHiveMind] admin controls hidden");
+		GetGame().GetInput().ChangeGameFocus(-1);
 		GetGame().GetUIManager().ShowUICursor(false);
 		GetGame().GetMission().PlayerControlEnable(false);
 	}
@@ -268,7 +277,8 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		super.Update(timeslice);
 		m_Age += timeslice;
 		// Skip the first moments, so the key press that opened the menu cannot close it.
-		if (m_Age > 0.3 && GetUApi().GetInputByID(UAUIBack).LocalPress())
+		// The game may already close the top menu on Esc itself: only close if still on top.
+		if (m_Age > 0.3 && GetUApi().GetInputByID(UAUIBack).LocalPress() && GetGame().GetUIManager().GetMenu() == this)
 		{
 			Close();
 			return;
@@ -331,6 +341,7 @@ modded class MissionGameplay
 		UAInput controls = GetUApi().GetInputByName("UAAFHiveMindControls");
 		if (controls && controls.LocalPress())
 		{
+			Print("[AFHiveMind] F10 pressed");
 			UIScriptedMenu open = GetGame().GetUIManager().GetMenu();
 			if (open)
 			{
@@ -366,6 +377,10 @@ modded class MissionGameplay
 	override void OnMissionFinish()
 	{
 		m_AFHM_Panel = null;
+		// Close the controls first, so the cursor and the character's controls are restored.
+		if (m_AFHM_Controls && GetGame().GetUIManager().GetMenu() == m_AFHM_Controls)
+			m_AFHM_Controls.Close();
+		m_AFHM_Controls = null;
 		// Offline single player has no MissionServer: save here.
 		if (GetGame().IsServer())
 		{
