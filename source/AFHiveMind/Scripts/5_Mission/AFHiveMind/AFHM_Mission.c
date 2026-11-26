@@ -140,7 +140,10 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	{
 		layoutRoot = GetGame().GetWorkspace().CreateWidgets("AFHiveMind/GUI/layouts/afhm_controls.layout");
 		if (!layoutRoot)
+		{
+			Print("[AFHiveMind] admin controls: could not load afhm_controls.layout");
 			return null;
+		}
 		m_Handler = new AFHM_ControlsHandler(this);
 		for (int i = 0; i < LINES; i++)
 		{
@@ -295,6 +298,8 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 modded class MissionGameplay
 {
 	protected ref AFHM_Panel m_AFHM_Panel;
+	// Held here: a menu made with new and handed to the UI manager is otherwise deleted at once.
+	protected ref AFHM_ControlsMenu m_AFHM_Controls;
 	protected float m_AFHM_Refresh;
 	protected int m_AFHM_Stamp = -1;
 
@@ -324,10 +329,20 @@ modded class MissionGameplay
 			AFHM_ShowPanel(!m_AFHM_Panel);
 
 		UAInput controls = GetUApi().GetInputByName("UAAFHiveMindControls");
-		if (controls && controls.LocalPress() && !GetGame().GetUIManager().GetMenu())
+		if (controls && controls.LocalPress())
 		{
-			AFHM_ShowPanel(false);
-			GetGame().GetUIManager().ShowScriptedMenu(new AFHM_ControlsMenu(), null);
+			UIScriptedMenu open = GetGame().GetUIManager().GetMenu();
+			if (open)
+			{
+				Print("[AFHiveMind] F10: another menu is open (" + open.ClassName() + "), not opening the admin controls");
+			}
+			else
+			{
+				AFHM_ShowPanel(false);
+				m_AFHM_Controls = new AFHM_ControlsMenu();
+				GetGame().GetUIManager().ShowScriptedMenu(m_AFHM_Controls, null);
+				Print("[AFHiveMind] F10: admin controls opened");
+			}
 		}
 
 		if (!m_AFHM_Panel)
