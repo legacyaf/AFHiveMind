@@ -84,6 +84,39 @@ class AFHM_Client
 	}
 };
 
+// Passes clicks and mouse-overs on the controls' buttons to the menu. A menu is not a widget
+// event handler itself, so the buttons need this go-between.
+class AFHM_ControlsHandler extends ScriptedWidgetEventHandler
+{
+	protected AFHM_ControlsMenu m_Menu;
+
+	void AFHM_ControlsHandler(AFHM_ControlsMenu menu)
+	{
+		m_Menu = menu;
+	}
+
+	override bool OnClick(Widget w, int x, int y, int button)
+	{
+		if (!m_Menu)
+			return false;
+		return m_Menu.AFHM_Clicked(w);
+	}
+
+	override bool OnMouseEnter(Widget w, int x, int y)
+	{
+		if (!m_Menu)
+			return false;
+		return m_Menu.AFHM_Highlight(w, true);
+	}
+
+	override bool OnMouseLeave(Widget w, Widget enterW, int x, int y)
+	{
+		if (!m_Menu)
+			return false;
+		return m_Menu.AFHM_Highlight(w, false);
+	}
+};
+
 // The admin controls: the same report as the debug panel, with buttons under it. Opens with
 // the mouse cursor and the character's controls locked; Esc or Close shuts it.
 class AFHM_ControlsMenu extends UIScriptedMenu
@@ -96,6 +129,7 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	protected static const string PREFIX = "AFHM_cmd_";
 
 	protected ref array<TextWidget> m_Lines = new array<TextWidget>;
+	protected ref AFHM_ControlsHandler m_Handler;
 	protected TextWidget m_ResetText;
 	protected float m_ResetArmed;
 	protected float m_Refresh;
@@ -107,6 +141,7 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		layoutRoot = GetGame().GetWorkspace().CreateWidgets("AFHiveMind/GUI/layouts/afhm_controls.layout");
 		if (!layoutRoot)
 			return null;
+		m_Handler = new AFHM_ControlsHandler(this);
 		for (int i = 0; i < LINES; i++)
 		{
 			TextWidget line = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets("AFHiveMind/GUI/layouts/afhm_line.layout", layoutRoot));
@@ -143,7 +178,7 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 			return null;
 		button.SetName(PREFIX + cmd);
 		button.SetPos(12 + column * (BUTTON_WIDTH + GAP), top);
-		button.SetHandler(this);
+		button.SetHandler(m_Handler);
 		TextWidget text = TextWidget.Cast(button.FindAnyWidget("AFHM_ButtonText"));
 		if (text)
 			text.SetText(label);
@@ -184,8 +219,10 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		GetGame().GetMission().PlayerControlEnable(false);
 	}
 
-	override bool OnClick(Widget w, int x, int y, int button)
+	bool AFHM_Clicked(Widget w)
 	{
+		if (!w)
+			return false;
 		string name = w.GetName();
 		if (name.IndexOf(PREFIX) != 0)
 			return false;
@@ -209,17 +246,7 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		return true;
 	}
 
-	override bool OnMouseEnter(Widget w, int x, int y)
-	{
-		return Highlight(w, true);
-	}
-
-	override bool OnMouseLeave(Widget w, Widget enterW, int x, int y)
-	{
-		return Highlight(w, false);
-	}
-
-	protected bool Highlight(Widget w, bool on)
+	bool AFHM_Highlight(Widget w, bool on)
 	{
 		if (!w || w.GetName().IndexOf(PREFIX) != 0)
 			return false;
