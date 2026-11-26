@@ -1,0 +1,6 @@
+﻿[h2]0.3.0[/h2]
+[list]
+[*][b]Admin controls (F10)[/b]: the debug report with buttons to freeze learning, pin the difficulty (or nudge it by 0.05), unpin it, run an evolve step now, and reset the brain (two clicks; the old brain is kept in the backups folder). Admins only, and every press is logged. If you already had the mod, DayZ may leave the new key blank: bind it under Controls > AF HiveMind > AF HiveMind admin controls.
+[*][b]Difficulty follows the whole community[/b]: no player counts for more than 8 remembered fights, the difficulty only moves once 20 fights count across all players, and no player adds more than 3 fights to one learning step. One strong player can no longer drive it up for everyone. All three are settings in config.json.
+[*]Quest givers and traders are no longer tuned, and fights with them do not count.
+[/list]

@@ -279,6 +279,16 @@ class CustomMission: MissionGameplay
 			case 1:
 				if (m_HiveStepTime >= 3)
 				{
+					// The test has one player, so the community rules (at most 8 fights per
+					// player, 20 in total) would hold difficulty still. Saved to the test
+					// profile's config.json, because every evolve step re-reads it.
+					AFHiveMind hmCap = AFHiveMind.Get();
+					hmCap.m_Config.PlayerFightsCap = 0;
+					hmCap.m_Config.DifficultyMinFights = 3;
+					hmCap.m_Config.PlayerFightsPerStepMax = 0;
+					hmCap.m_Config.Frozen = false;
+					hmCap.m_Config.PinnedDifficulty = -1;
+					hmCap.SaveConfig();
 					AFHiveMind.Get().Evolve();
 					PrintReport("after the player wiped out Alpha");
 					// Alpha died at close range, so the bots should lean to automatics. The test

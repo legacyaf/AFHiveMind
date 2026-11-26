@@ -18,6 +18,7 @@ class AFHM_Const
 
 	static const int RPC_REQUEST = 874410001;
 	static const int RPC_REPORT = 874410002;
+	static const int RPC_COMMAND = 874410003;
 };
 
 class AFHM_Config
@@ -42,8 +43,23 @@ class AFHM_Config
 	float TargetPlayerWinRate = 0.8;
 	// How far difficulty (0..1) may move per evolve step when there is plenty of new evidence.
 	float LearnRate = 0.15;
-	// Fights needed before it trusts a win rate (overall, per zone and per player).
+	// Fights needed before it trusts a win rate per zone, per player and for tactics.
 	float MinSamples = 3;
+	// The global difficulty follows the whole community, not its best player:
+	// - no player counts for more than PlayerFightsCap remembered fights (one with more still
+	//   counts with their own win rate, only scaled down to that many fights; 0 = no cap),
+	// - difficulty only moves once DifficultyMinFights fights count, all players together,
+	// - no player adds more than PlayerFightsPerStepMax fights to one evolve step.
+	// With the defaults it takes at least three players who fight bots before it moves.
+	float PlayerFightsCap = 8;
+	float DifficultyMinFights = 20;
+	float PlayerFightsPerStepMax = 3;
+
+	// Admin controls, also on the in-game controls panel (F10 by default).
+	// Frozen: nothing is learned and nothing fades; bots are still tuned from what it knows.
+	bool Frozen = false;
+	// From 0 to 1: the global difficulty is held there. Below 0 (the default): it learns.
+	float PinnedDifficulty = -1;
 
 	// Difficulty 0 gives the Min scale, 0.5 gives 1 (the patrol's own setting), 1 gives the Max scale.
 	float AccuracyScaleMin = 0.6;

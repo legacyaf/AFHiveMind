@@ -22,6 +22,14 @@ modded class PlayerBase
 		m_AFHM_Profile = profile;
 	}
 
+	// Quest givers and traders are Expansion AI too, but they are not enemies: they are never
+	// tuned and fights with them teach nothing. Checked by config class, so this works whether
+	// or not the Quests and Market mods are loaded.
+	bool AFHM_IsServiceNPC()
+	{
+		return IsKindOf("ExpansionQuestNPCAIBase") || IsKindOf("ExpansionTraderAIBase");
+	}
+
 	// The player or bot holding (or being) the thing that did the damage; null for anything else.
 	protected PlayerBase AFHM_Opponent(Object source)
 	{
@@ -53,7 +61,7 @@ modded class PlayerBase
 
 		PlayerBase other = AFHM_Opponent(source);
 		// Only player-versus-bot hits teach it anything.
-		if (!other || other.IsAI() == IsAI())
+		if (!other || other.IsAI() == IsAI() || AFHM_IsServiceNPC() || other.AFHM_IsServiceNPC())
 			return;
 		AFHiveMind hm = AFHiveMind.Get();
 		if (hm)
@@ -65,7 +73,7 @@ modded class PlayerBase
 		if (GetGame().IsServer())
 		{
 			PlayerBase other = AFHM_Opponent(killer);
-			if (other && other.IsAI() != IsAI())
+			if (other && other.IsAI() != IsAI() && !AFHM_IsServiceNPC() && !other.AFHM_IsServiceNPC())
 			{
 				AFHiveMind hm = AFHiveMind.Get();
 				if (hm)
@@ -79,6 +87,13 @@ modded class PlayerBase
 		}
 
 		super.EEKilled(killer);
+	}
+
+	protected void AFHM_SendReport(PlayerIdentity to, array<string> lines)
+	{
+		ScriptRPC rpc = new ScriptRPC();
+		rpc.Write(lines);
+		rpc.Send(this, AFHM_Const.RPC_REPORT, true, to);
 	}
 
 	override void OnRPC(PlayerIdentity sender, int rpc_type, ParamsReadContext ctx)
@@ -98,9 +113,29 @@ modded class PlayerBase
 				lines = hm.PanelLines();
 			else
 				lines.Insert("AF HiveMind: you are not listed under Admins in config.json.");
-			ScriptRPC rpc = new ScriptRPC();
-			rpc.Write(lines);
-			rpc.Send(this, AFHM_Const.RPC_REPORT, true, sender);
+			AFHM_SendReport(sender, lines);
+		}
+		else if (rpc_type == AFHM_Const.RPC_COMMAND)
+		{
+			// A button on the admin controls panel. Answered with a fresh report.
+			if (!GetGame().IsServer())
+				return;
+			AFHiveMind hmCmd = AFHiveMind.Get();
+			string cmd;
+			if (!hmCmd || !ctx.Read(cmd))
+				return;
+			array<string> cmdLines = new array<string>;
+			if (hmCmd.IsAdmin(sender))
+			{
+				hmCmd.AdminCommand(sender, cmd);
+				cmdLines = hmCmd.PanelLines();
+			}
+			else
+			{
+				cmdLines.Insert("AF HiveMind: you are not listed under Admins in config.json.");
+				AFHM_Util.Log("refused admin command '" + cmd + "' from a player not listed under Admins");
+			}
+			AFHM_SendReport(sender, cmdLines);
 		}
 		else if (rpc_type == AFHM_Const.RPC_REPORT)
 		{
@@ -238,6 +273,11 @@ modded class eAIBase
 	{
 		if (m_AFHM_Tuned || !IsAlive())
 			return;
+		if (AFHM_IsServiceNPC())
+		{
+			m_AFHM_Tuned = true;
+			return;
+		}
 
 		// A bot following a player (Expansion's recruit feature) is the player's, not an enemy.
 		string label = "bot from another mod (" + GetType() + ")";
