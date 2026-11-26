@@ -42,7 +42,7 @@ Every limit above is a number in `config.json`. `config.json` is written back ea
 
 The two loadouts, `AFHM_MarksmanWeapons.json` and `AFHM_AssaultWeapons.json`, are written once to `ExpansionMod\Loadouts` with vanilla weapons only. Edit them like any Expansion loadout, or point the config at your own. They hold weapon sets only: a bot keeps its patrol's clothes and gear. Bots from other mods (convoys, vehicle crews) get the flanking change but keep their own weapons.
 
-**Bots from other mods.** Bots that other mods create without a patrol (Moving AI Convoy, BS Patrol Helicopter and Tank) are tuned `OtherBotsDelaySeconds` (3) after they appear, from whatever their own mod set. Bots following a player are never tuned. `TuneOtherBots` switches this off.
+**Bots from other mods.** Bots that other mods create without a patrol (Moving AI Convoy, BS Patrol Helicopter and Tank) are tuned `OtherBotsDelaySeconds` (3) after they appear, from whatever their own mod set. Bots following a player, quest givers and traders are never tuned, and fights with quest givers or traders are not counted. `TuneOtherBots` switches this off.
 
 ## Files it keeps
 
