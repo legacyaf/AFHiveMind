@@ -89,6 +89,13 @@ modded class PlayerBase
 		super.EEKilled(killer);
 	}
 
+	protected void AFHM_SendReport(PlayerIdentity to, array<string> lines)
+	{
+		ScriptRPC rpc = new ScriptRPC();
+		rpc.Write(lines);
+		rpc.Send(this, AFHM_Const.RPC_REPORT, true, to);
+	}
+
 	override void OnRPC(PlayerIdentity sender, int rpc_type, ParamsReadContext ctx)
 	{
 		super.OnRPC(sender, rpc_type, ctx);
@@ -106,9 +113,29 @@ modded class PlayerBase
 				lines = hm.PanelLines();
 			else
 				lines.Insert("AF HiveMind: you are not listed under Admins in config.json.");
-			ScriptRPC rpc = new ScriptRPC();
-			rpc.Write(lines);
-			rpc.Send(this, AFHM_Const.RPC_REPORT, true, sender);
+			AFHM_SendReport(sender, lines);
+		}
+		else if (rpc_type == AFHM_Const.RPC_COMMAND)
+		{
+			// A button on the admin controls panel. Answered with a fresh report.
+			if (!GetGame().IsServer())
+				return;
+			AFHiveMind hmCmd = AFHiveMind.Get();
+			string cmd;
+			if (!hmCmd || !ctx.Read(cmd))
+				return;
+			array<string> cmdLines = new array<string>;
+			if (hmCmd.IsAdmin(sender))
+			{
+				hmCmd.AdminCommand(sender, cmd);
+				cmdLines = hmCmd.PanelLines();
+			}
+			else
+			{
+				cmdLines.Insert("AF HiveMind: you are not listed under Admins in config.json.");
+				AFHM_Util.Log("refused admin command '" + cmd + "' from a player not listed under Admins");
+			}
+			AFHM_SendReport(sender, cmdLines);
 		}
 		else if (rpc_type == AFHM_Const.RPC_REPORT)
 		{

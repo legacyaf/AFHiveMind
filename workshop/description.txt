@@ -35,6 +35,8 @@ Every one of these limits is a setting in config.json.
 [h2]For admins[/h2]
 [list]
 [*][b]F9 debug panel[/b] (admins only, listed by Steam64 id): current difficulty, what it has learned in plain words, and the last patrols it tuned with the reason for each number.
+[*][b]F10 admin controls[/b]: freeze learning, pin the difficulty, run a learning step now, or reset the brain, all in game.
+[*][b]Follows the community, not one player[/b]: no single player's fights can set the difficulty alone.
 [*][b]Readable files[/b] in the server profile, folder AFHiveMind: brain.json (everything it learned), report.txt (the same in plain English), hivemind.log (every fight it saw and every change of mind), config.json (all settings).
 [*]config.json is re-read every 10 minutes: change settings without a restart. Settings added by an update appear in it automatically. Set "Enabled" to false to switch it off.
 [*]Delete brain.json to start over from "as configured". A daily backup is kept in AFHiveMind\backups (last 7).

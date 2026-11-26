@@ -12,7 +12,9 @@ A DayZ mod that watches how players and [DayZ Expansion AI](https://steamcommuni
 - hits and headshots players land on bots, hits bots land on players
 - where players spend their time
 
-**Learns.** Every ten minutes (the evolve step) it compares the share of lethal fights the players win with a target (80% by default) and moves a single difficulty figure between 0 and 1. Memory fades with a half-life of 72 hours of server uptime, so the bots follow how people play now, not last month.
+**Learns.** Every ten minutes (the evolve step) it compares the share of lethal fights the players win with a target (80% by default) and moves a single difficulty figure between 0 and 1. Memory fades with a half-life of 72 hours, so the bots follow how people play now, not last month.
+
+The figure follows the whole community, not its best player. No player counts for more than `PlayerFightsCap` (8) remembered fights: a player with more still counts with their own win rate, scaled down to 8 fights. The difficulty only moves once `DifficultyMinFights` (20) fights count, all players together, and no player adds more than `PlayerFightsPerStepMax` (3) fights to one evolve step. With the defaults, at least three players must have fought bots before it moves. Set `PlayerFightsCap` to 0 for no cap.
 
 **Adjusts.** Each bot a patrol spawns keeps the patrol's own settings, scaled by the difficulty:
 
@@ -55,9 +57,21 @@ In the server profile folder, under `AFHiveMind\`:
 | `report.txt` | The same knowledge in plain words, rewritten at every save. |
 | `hivemind.log` | Journal: every change of mind, every fight it saw (`DebugLevel` 1), every bot it tuned (`DebugLevel` 2). |
 
-## Debug panel
+## Debug panel and admin controls
 
 Press **F9** in game (rebindable under Controls > AF HiveMind). It shows the current generation and difficulty, what was learned in plain words, and the latest patrols it tuned with the reason for each figure. On a server, only Steam64 ids listed under `Admins` in `config.json` get the report.
+
+Press **F10** for the admin controls: the same report with the mouse cursor and these buttons. Esc or Close shuts it.
+
+| Button | What it does |
+|---|---|
+| Freeze learning / Resume learning | While frozen, no fights are recorded and nothing fades. Bots are still tuned from what it knows, and hard bots still drop bounty loot. Same as `Frozen` in `config.json`. |
+| Pin difficulty, Pin -0.05, Pin +0.05 | Holds the global difficulty at the current figure, or 0.05 lower or higher. Fights are still learned from (tactics, zones, players), but do not move it. Zone and player corrections still apply on top. Same as `PinnedDifficulty`. |
+| Unpin | Lets the difficulty learn again, starting from where it was pinned. |
+| Evolve now | Runs the ten-minute learning step at once. |
+| Reset brain | Click twice. Starts over with an empty brain; the old one is kept as `backups\reset_brain_<date>_<time>.json`. Settings, the freeze and the pin are kept. |
+
+Every button is checked against `Admins` on the server and written to `hivemind.log` with the admin's name.
 
 ## Installing
 
@@ -104,6 +118,6 @@ Three overrides, in `Scripts\4_World\AFHiveMind\AFHM_Hooks.c`:
 
 - `eAIDynamicPatrol.SetupAI` - tune a bot after Expansion applied the patrol's settings
 - `PlayerBase.EEKilled` and `PlayerBase.EEHitBy` - record player-versus-bot kills and hits
-- `PlayerBase.OnRPC` - the debug panel's request and report
+- `PlayerBase.OnRPC` - the debug panel's request and report, and the admin controls' commands
 
 If an Expansion update breaks the mod, these are the places to look.

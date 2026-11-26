@@ -3,14 +3,19 @@
 	<inputs>
 		<actions>
 			<input name="UAAFHiveMindDebug" loc="AF HiveMind debug panel"/>
+			<input name="UAAFHiveMindControls" loc="AF HiveMind admin controls"/>
 		</actions>
 		<sorting name="afhivemind" loc="AF HiveMind">
 			<input name="UAAFHiveMindDebug"/>
+			<input name="UAAFHiveMindControls"/>
 		</sorting>
 	</inputs>
 	<preset>
 		<input name="UAAFHiveMindDebug">
 			<btn name="kF9"/>
+		</input>
+		<input name="UAAFHiveMindControls">
+			<btn name="kF10"/>
 		</input>
 	</preset>
 </modded_inputs>

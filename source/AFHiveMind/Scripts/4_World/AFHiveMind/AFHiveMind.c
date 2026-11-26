@@ -13,6 +13,8 @@ class AFHiveMind
 	protected float m_LastSave;
 	protected float m_LastPresence;
 	protected float m_NewEvidence;
+	// New fights since the last evolve step, per player id.
+	protected ref map<string, float> m_NewByPlayer = new map<string, float>;
 	protected bool m_Dirty;
 	protected ref array<string> m_Recent = new array<string>;
 
@@ -72,11 +74,20 @@ class AFHiveMind
 			cfg.ZoneSize = 50;
 		if (cfg.MemoryHalfLifeHours <= 0)
 			cfg.MemoryHalfLifeHours = 72;
+		if (cfg.PinnedDifficulty > 1)
+			cfg.PinnedDifficulty = 1;
 		m_Config = cfg;
 		// Write it back: a config.json from an older version gains the new settings, with
 		// their defaults, while every value the admin set is kept.
 		if (FileExist(AFHM_Const.CONFIG_PATH) && !err)
 			JsonFileLoader<AFHM_Config>.SaveFile(AFHM_Const.CONFIG_PATH, cfg, err);
+	}
+
+	void SaveConfig()
+	{
+		string err;
+		if (!JsonFileLoader<AFHM_Config>.SaveFile(AFHM_Const.CONFIG_PATH, m_Config, err))
+			AFHM_Util.Log("config.json could not be written: " + err);
 	}
 
 	protected void LoadBrain()
@@ -167,6 +178,8 @@ class AFHiveMind
 
 	protected void SamplePresence()
 	{
+		if (m_Config.Frozen)
+			return;
 		array<Man> players = new array<Man>;
 		GetGame().GetPlayers(players);
 		foreach (Man man: players)
@@ -192,31 +205,49 @@ class AFHiveMind
 
 		// Fade by real time since the last fade, so days the server was down count as well.
 		int stamp = ExpansionStatic.GetTimestamp(true);
+		if (m_Config.Frozen)
+		{
+			// Frozen: time stands still for its memory, so nothing fades while it is frozen.
+			m_Brain.LastFadeTimestamp = stamp;
+			m_NewEvidence = 0;
+			m_NewByPlayer.Clear();
+			RefreshInsights();
+			Save();
+			return;
+		}
 		if (m_Brain.LastFadeTimestamp <= 0 || stamp < m_Brain.LastFadeTimestamp)
 			m_Brain.LastFadeTimestamp = stamp;
 		float hours = (stamp - m_Brain.LastFadeTimestamp) / 3600.0;
 		m_Brain.LastFadeTimestamp = stamp;
 		Decay(Math.Pow(0.5, hours / m_Config.MemoryHalfLifeHours));
 
-		float fights = m_Brain.BotsKilledByPlayers + m_Brain.PlayersKilledByBots;
-		float winRate = WinRate(m_Brain.BotsKilledByPlayers, m_Brain.PlayersKilledByBots);
+		float wins;
+		float losses;
+		int players;
+		float counted = CountedFights(wins, losses, players);
+		float winRate = WinRate(wins, losses);
 		float before = m_Brain.Difficulty;
 
-		if (fights >= m_Config.MinSamples && m_NewEvidence > 0)
+		if (m_Config.PinnedDifficulty >= 0)
+		{
+			m_Brain.Difficulty = Math.Clamp(m_Config.PinnedDifficulty, 0, 1);
+		}
+		else if (counted >= m_Config.DifficultyMinFights && m_NewEvidence > 0)
 		{
 			// Little new evidence moves it a little; ten or more fights move it the full step.
-			float weight = Math.Clamp(m_NewEvidence / 10, 0, 1);
+			float weight = Math.Clamp(CountedNewFights() / 10, 0, 1);
 			// A win rate 20 points or more off the target counts as a full miss.
 			float miss = Math.Clamp((winRate - m_Config.TargetPlayerWinRate) / 0.2, -1, 1);
 			m_Brain.Difficulty = Math.Clamp(before + m_Config.LearnRate * weight * miss, 0, 1);
 		}
 		m_NewEvidence = 0;
+		m_NewByPlayer.Clear();
 		m_Brain.Generation++;
 
-		BuildInsights(winRate, fights);
+		BuildInsights(winRate, counted, players);
 
 		if (Math.AbsFloat(m_Brain.Difficulty - before) > 0.004)
-			AFHM_Util.Log("generation " + m_Brain.Generation.ToString() + ": players win " + AFHM_Util.Pct(winRate) + " (target " + AFHM_Util.Pct(m_Config.TargetPlayerWinRate) + "), difficulty " + AFHM_Util.F(before) + " -> " + AFHM_Util.F(m_Brain.Difficulty));
+			AFHM_Util.Log("generation " + m_Brain.Generation.ToString() + ": players win " + AFHM_Util.Pct(winRate) + " of " + AFHM_Util.F(counted, 1) + " counted fights from " + players.ToString() + " players (target " + AFHM_Util.Pct(m_Config.TargetPlayerWinRate) + "), difficulty " + AFHM_Util.F(before) + " -> " + AFHM_Util.F(m_Brain.Difficulty));
 
 		Save();
 	}
@@ -274,6 +305,60 @@ class AFHiveMind
 		}
 		foreach (string pGone: gone)
 			m_Brain.Players.Remove(pGone);
+	}
+
+	// The fights that set the global difficulty: every player's remembered fights, but no player
+	// counting for more than PlayerFightsCap of them, so one strong player cannot set it alone.
+	// A capped player keeps their own win rate, only with fewer fights behind it.
+	float CountedFights(out float wins, out float losses, out int players)
+	{
+		wins = 0;
+		losses = 0;
+		players = 0;
+		foreach (string id, AFHM_PlayerStats ps: m_Brain.Players)
+		{
+			float n = ps.BotsKilled + ps.DeathsToBots;
+			if (n <= 0)
+				continue;
+			float f = 1;
+			if (m_Config.PlayerFightsCap > 0 && n > m_Config.PlayerFightsCap)
+				f = m_Config.PlayerFightsCap / n;
+			wins += ps.BotsKilled * f;
+			losses += ps.DeathsToBots * f;
+			if (n >= 0.5)
+				players++;
+		}
+		return wins + losses;
+	}
+
+	// New fights since the last evolve step, no player adding more than PlayerFightsPerStepMax.
+	protected float CountedNewFights()
+	{
+		float total;
+		foreach (string id, float n: m_NewByPlayer)
+		{
+			if (m_Config.PlayerFightsPerStepMax > 0)
+				total += Math.Min(n, m_Config.PlayerFightsPerStepMax);
+			else
+				total += n;
+		}
+		return total;
+	}
+
+	static string PlayerId(PlayerBase player)
+	{
+		if (player && player.GetIdentity())
+			return player.GetIdentity().GetPlainId();
+		return "offline";
+	}
+
+	protected void NoteNewFight(PlayerBase player)
+	{
+		m_NewEvidence += 1;
+		string id = PlayerId(player);
+		float n;
+		m_NewByPlayer.Find(id, n);
+		m_NewByPlayer.Set(id, n + 1);
 	}
 
 	// Win rate pulled towards the target until there is real evidence.
@@ -361,14 +446,11 @@ class AFHiveMind
 
 	AFHM_PlayerStats GetPlayerStats(PlayerBase player)
 	{
-		string id = "offline";
+		string id = PlayerId(player);
 		string name = "Offline player";
 		PlayerIdentity identity = player.GetIdentity();
 		if (identity)
-		{
-			id = identity.GetPlainId();
 			name = identity.GetName();
-		}
 		AFHM_PlayerStats ps;
 		if (!m_Brain.Players.Find(id, ps))
 		{
@@ -393,6 +475,12 @@ class AFHiveMind
 	{
 		if (!m_Config.Enabled)
 			return;
+		if (m_Config.Frozen)
+		{
+			// Nothing is learned, but a hard bot still pays out its bounty.
+			DropBounty(bot);
+			return;
+		}
 
 		float dist = vector.Distance(bot.GetPosition(), killer.GetPosition());
 		string weapon = "Melee or other";
@@ -433,7 +521,7 @@ class AFHiveMind
 		NoteNight(bot);
 		NoteHour();
 		DropBounty(bot);
-		m_NewEvidence += 1;
+		NoteNewFight(killer);
 		m_Dirty = true;
 
 		if (m_Config.DebugLevel >= 1)
@@ -442,7 +530,7 @@ class AFHiveMind
 
 	void RecordPlayerKilled(PlayerBase victim, PlayerBase bot, EntityAI source)
 	{
-		if (!m_Config.Enabled)
+		if (!m_Config.Enabled || m_Config.Frozen)
 			return;
 
 		float dist = vector.Distance(bot.GetPosition(), victim.GetPosition());
@@ -456,7 +544,7 @@ class AFHiveMind
 
 		NoteNight(bot);
 		NoteHour();
-		m_NewEvidence += 1;
+		NoteNewFight(victim);
 		m_Dirty = true;
 
 		if (m_Config.DebugLevel >= 1)
@@ -518,7 +606,7 @@ class AFHiveMind
 
 	void RecordHit(PlayerBase victim, PlayerBase attacker, string dmgZone)
 	{
-		if (!m_Config.Enabled)
+		if (!m_Config.Enabled || m_Config.Frozen)
 			return;
 
 		if (victim.IsAI())
@@ -744,14 +832,32 @@ class AFHiveMind
 		return best;
 	}
 
-	protected void BuildInsights(float winRate, float fights)
+	void RefreshInsights()
+	{
+		float wins;
+		float losses;
+		int players;
+		float counted = CountedFights(wins, losses, players);
+		BuildInsights(WinRate(wins, losses), counted, players);
+	}
+
+	protected void BuildInsights(float winRate, float counted, int players)
 	{
 		array<string> ins = m_Brain.Insights;
 		ins.Clear();
+		float fights = m_Brain.BotsKilledByPlayers + m_Brain.PlayersKilledByBots;
 
-		if (fights < m_Config.MinSamples)
+		if (m_Config.Frozen)
+			ins.Insert("Learning is FROZEN by an admin: no fights are recorded and nothing fades. Bots are still tuned from what it knows.");
+		if (m_Config.PinnedDifficulty >= 0)
+			ins.Insert("Difficulty is PINNED at " + AFHM_Util.F(m_Config.PinnedDifficulty) + " by an admin: fights are still learned from, but do not move it.");
+
+		string spread = AFHM_Util.F(counted, 1) + " fights counted from " + players.ToString() + " players";
+		if (m_Config.PlayerFightsCap > 0)
+			spread += ", at most " + AFHM_Util.F(m_Config.PlayerFightsCap, 0) + " each";
+		if (counted < m_Config.DifficultyMinFights)
 		{
-			ins.Insert("Not enough fights seen yet (" + AFHM_Util.F(fights, 1) + " of " + AFHM_Util.F(m_Config.MinSamples, 0) + "): bots stay as configured.");
+			ins.Insert("Not enough fights across all players yet (" + spread + "; " + AFHM_Util.F(m_Config.DifficultyMinFights, 0) + " needed): difficulty does not move.");
 		}
 		else
 		{
@@ -760,7 +866,7 @@ class AFHiveMind
 				verdict = "bots are too easy";
 			else if (winRate < m_Config.TargetPlayerWinRate - 0.03)
 				verdict = "bots are too hard";
-			ins.Insert("Players win " + AFHM_Util.Pct(winRate) + " of lethal fights (target " + AFHM_Util.Pct(m_Config.TargetPlayerWinRate) + "): " + verdict + ".");
+			ins.Insert("Players win " + AFHM_Util.Pct(winRate) + " of lethal fights (" + spread + "; target " + AFHM_Util.Pct(m_Config.TargetPlayerWinRate) + "): " + verdict + ".");
 		}
 
 		float d = m_Brain.Difficulty;
@@ -842,7 +948,12 @@ class AFHiveMind
 		string state = "ON";
 		if (!m_Config.Enabled)
 			state = "OFF (Enabled is false in config.json)";
-		r.Insert("Tuning " + state + " | difficulty " + AFHM_Util.F(m_Brain.Difficulty) + " (0 easiest, 0.5 as configured, 1 hardest)");
+		if (m_Config.Frozen)
+			state += " | learning FROZEN";
+		string pinned = "";
+		if (m_Config.PinnedDifficulty >= 0)
+			pinned = " PINNED";
+		r.Insert("Tuning " + state + " | difficulty " + AFHM_Util.F(m_Brain.Difficulty) + pinned + " (0 easiest, 0.5 as configured, 1 hardest)");
 		r.Insert("Remembered: " + AFHM_Util.F(m_Brain.BotsKilledByPlayers, 1) + " bots lost, " + AFHM_Util.F(m_Brain.PlayersKilledByBots, 1) + " players killed | lifetime " + m_Brain.TotalBotsKilled.ToString() + " / " + m_Brain.TotalPlayersKilled.ToString() + " | bots tuned " + m_Brain.TotalBotsTuned.ToString());
 		r.Insert("New fights since the last evolve step: " + AFHM_Util.F(m_NewEvidence, 0) + " | next step in " + AFHM_Util.F(Math.Max(m_Config.EvolveIntervalSeconds - (GetGame().GetTickTime() - m_LastEvolve), 0), 0) + " s");
 		r.Insert(" ");
@@ -879,11 +990,107 @@ class AFHiveMind
 		return m_Config.Admins.Find(identity.GetPlainId()) > -1;
 	}
 
+	// ------------------------------------------------------------------ admin controls
+
+	// A button on the in-game controls panel. The caller has checked the sender is an admin.
+	void AdminCommand(PlayerIdentity who, string cmd)
+	{
+		string name = "offline admin";
+		if (who)
+			name = who.GetName() + " [" + who.GetPlainId() + "]";
+		float current = m_Brain.Difficulty;
+		if (m_Config.PinnedDifficulty >= 0)
+			current = m_Config.PinnedDifficulty;
+
+		string done;
+		if (cmd == "freeze")
+		{
+			m_Config.Frozen = true;
+			done = "froze learning";
+		}
+		else if (cmd == "resume")
+		{
+			if (m_Config.Frozen)
+				m_Brain.LastFadeTimestamp = ExpansionStatic.GetTimestamp(true);
+			m_Config.Frozen = false;
+			done = "resumed learning";
+		}
+		else if (cmd == "pin")
+		{
+			done = "pinned difficulty at " + AFHM_Util.F(PinAt(current));
+		}
+		else if (cmd == "pin_down")
+		{
+			done = "pinned difficulty at " + AFHM_Util.F(PinAt(current - 0.05));
+		}
+		else if (cmd == "pin_up")
+		{
+			done = "pinned difficulty at " + AFHM_Util.F(PinAt(current + 0.05));
+		}
+		else if (cmd == "unpin")
+		{
+			m_Config.PinnedDifficulty = -1;
+			done = "unpinned difficulty: it learns again from " + AFHM_Util.F(m_Brain.Difficulty);
+		}
+		else if (cmd == "evolve")
+		{
+			Evolve();
+			done = "ran an evolve step: difficulty " + AFHM_Util.F(m_Brain.Difficulty);
+		}
+		else if (cmd == "reset")
+		{
+			ResetBrain();
+			done = "reset the brain (the old one is in AFHiveMind\\backups)";
+		}
+		else
+		{
+			return;
+		}
+
+		SaveConfig();
+		RefreshInsights();
+		Save();
+		AFHM_Util.Log("admin " + name + ": " + done);
+	}
+
+	protected float PinAt(float value)
+	{
+		float pin = Math.Clamp(Math.Round(value * 100) / 100, 0, 1);
+		m_Config.PinnedDifficulty = pin;
+		m_Brain.Difficulty = pin;
+		return pin;
+	}
+
+	// Starts over with an empty brain. The current one is saved first and kept in the backups
+	// folder as reset_brain_<date>_<time>.json, outside the daily backups that get cleaned up.
+	protected void ResetBrain()
+	{
+		Save();
+		if (!FileExist(AFHM_Const.BACKUP_DIR))
+			MakeDirectory(AFHM_Const.BACKUP_DIR);
+		string stamp = AFHM_Util.Now();
+		stamp.Replace(":", "-");
+		stamp.Replace(" ", "_");
+		if (FileExist(AFHM_Const.BRAIN_PATH))
+			CopyFile(AFHM_Const.BRAIN_PATH, AFHM_Const.BACKUP_DIR + "/reset_brain_" + stamp + ".json");
+
+		AFHM_Brain fresh = new AFHM_Brain();
+		fresh.Validate();
+		fresh.LastFadeTimestamp = ExpansionStatic.GetTimestamp(true);
+		if (m_Config.PinnedDifficulty >= 0)
+			fresh.Difficulty = Math.Clamp(m_Config.PinnedDifficulty, 0, 1);
+		m_Brain = fresh;
+		m_NewEvidence = 0;
+		m_NewByPlayer.Clear();
+	}
+
 	// The text sent to an admin's debug panel.
 	array<string> PanelLines()
 	{
 		// The panel is 640 px wide: longer lines continue, indented, on the next row.
 		array<string> source = BuildReport(false);
+		source.Insert(" ");
+		source.Insert("Admin controls (freeze, pin, reset): F10, rebindable under Controls > AF HiveMind.");
 		array<string> lines = new array<string>;
 		foreach (string full: source)
 		{
