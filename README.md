@@ -4,6 +4,8 @@ A DayZ mod that watches how players and [DayZ Expansion AI](https://steamcommuni
 
 ![The in-game debug panel](docs/panel.jpg)
 
+**Running a server? Read the [guide for server owners](docs/SERVER_GUIDE.md).** It covers installing (self-hosted and on hosts such as GTX or Nitrado), becoming an admin, the F9 and F10 panels, every setting, common recipes, and troubleshooting. The rest of this page is for people working on the mod.
+
 ## What it does
 
 **Observes** (server side, players versus bots only):
@@ -26,7 +28,9 @@ The figure follows the whole community, not its best player. No player counts fo
 | Sight (threat range) | x0.75 | as configured | x1.1, never past 1,100 m (Expansion caps bot visibility there) |
 | Hearing (how far a bot goes to check a gunshot) | x0.7 | as configured | x1.3 |
 
-Two local corrections sit on top of the global figure: bots in a 500 m zone where players farm them get up to +0.15, and bots spawning near a player who rarely loses get up to +0.2 (and the reverse for a zone or a player the bots dominate).
+Two local corrections can sit on top of the global figure: bots in a 500 m zone where players farm them get up to +0.15 (`ZoneOffsetMax`), and the reverse where bots dominate. Bots spawning near a player who rarely loses can get up to `PlayerOffsetMax` extra; that is 0 (off) since 0.4.0, and an older `config.json` still holding the old default 0.2 is moved to 0 automatically.
+
+**Hot zones.** An ordinary patrol (not a quest or object patrol) spawning in a zone where players win far more often than the target comes out bigger: up to `HotZoneExtraShareMax` (50%) more bots, never more than `HotZoneExtraBotsMax` (3) extra. The extra bots are added by raising the patrol's `m_NumberOfAI` while Expansion sets up its first bot, before it spawns the others, so Expansion spawns and manages them as ordinary members. Saved (`Persist`) patrols are never made bigger. `HotZoneExtraBots` switches it off.
 
 Every limit above is a number in `config.json`. `config.json` is written back each time it is read, so settings added in a newer version appear in an older file with their defaults, while your own values are kept.
 
@@ -82,6 +86,16 @@ Requires CF, Dabs Framework, DayZ-Expansion-Core and DayZ-Expansion-AI.
 
 It only touches bots spawned by Expansion patrols (including object patrols and quest AI, which use the same patrol class).
 
+## Releasing
+
+Run this before every Workshop upload:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\release.ps1
+```
+
+It stops unless you are on `main`, with nothing uncommitted and nothing newer on GitHub. It checks that `config.cpp` and `AFHM_Const.VERSION` carry the same version and that `workshop\changenotes_<version>.txt` exists. Then it builds, signs and runs the offline test. The offline test is what compiles the scripts: `build.ps1` only packs them, so a script error would otherwise first show up on a live server. When everything passes, it prints the content folder for the DayZ Tools Publisher and copies the change notes to the clipboard. It never publishes anything itself.
+
 ## Building and testing
 
 ```powershell
@@ -94,7 +108,7 @@ packs `source\AFHiveMind` into `@AFHiveMind\Addons` and signs it with `keys\AFHi
 powershell -ExecutionPolicy Bypass -File testmission\run_test.ps1 -Fresh
 ```
 
-runs an offline mission in DayZDiag: a patrol spawns on an empty brain, the player's rifle kills it, the HiveMind evolves, a second patrol must come out harder, and a bot then kills the player. Leave out `-Fresh` to run again on the brain the last run saved.
+runs an offline mission in DayZDiag: a patrol spawns on an empty brain, the player's rifle kills it, the HiveMind evolves, a second patrol must come out harder and, because it spawns in the zone where the first one died, bigger. A bot then kills the player. Leave out `-Fresh` to run again on the brain the last run saved. It ends with `TEST PASSED` or `TEST FAILED`, and exit code 0 or 1.
 
 What the offline test cannot show: bots do not manage to fire in offline DayZDiag (their weapons fail to chamber), so the player's death is dealt by script as melee damage from a bot, and bullet hits on bots are dealt by script with the player's rifle as the source.
 

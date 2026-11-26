@@ -6,6 +6,8 @@
 
 class AFHM_Const
 {
+	// Keep equal to version in config.cpp (tools\release.ps1 checks). Shown at the top of the report.
+	static const string VERSION = "0.4.0";
 	static const string DIR = "$profile:AFHiveMind";
 	static const string CONFIG_PATH = "$profile:AFHiveMind/config.json";
 	static const string BRAIN_PATH = "$profile:AFHiveMind/brain.json";
@@ -23,6 +25,9 @@ class AFHM_Const
 
 class AFHM_Config
 {
+	// Which version of the settings this file was last brought up to. Older files are updated
+	// on load (see AFHiveMind.LoadConfig); do not edit.
+	int ConfigVersion = 0;
 	bool Enabled = true;
 	// 0 = journal only, 1 = also log every recorded fight, 2 = also log every tuned bot
 	int DebugLevel = 1;
@@ -72,8 +77,10 @@ class AFHM_Config
 	float DamageReceivedScaleHard = 1.0;
 
 	// Bots in a zone the players farm, or near a player who rarely loses, get this much extra at most.
+	// PlayerOffsetMax is 0 (off) by default since 0.4.0: difficulty follows the community, not
+	// one player. Raise it (0.2 at most is sensible) to make bots harder near strong players.
 	float ZoneOffsetMax = 0.15;
-	float PlayerOffsetMax = 0.2;
+	float PlayerOffsetMax = 0;
 	float PlayerInfluenceRadius = 1200;
 	float ZoneSize = 500;
 
@@ -84,6 +91,13 @@ class AFHM_Config
 	float ThreatScaleHard = 1.1;
 	float NoiseScaleEasy = 0.7;
 	float NoiseScaleHard = 1.3;
+
+	// Hot zones: patrols spawning in a zone where players win far more often than the target get
+	// extra bots: up to HotZoneExtraShareMax more (0.5 = half as many again), and never more than
+	// HotZoneExtraBotsMax extra per patrol. Saved (Persist) patrols are never made bigger.
+	bool HotZoneExtraBots = true;
+	float HotZoneExtraShareMax = 0.5;
+	int HotZoneExtraBotsMax = 3;
 
 	// Range counter: bots adapt to the range players fight at.
 	// A kill beyond LongRangeDistance counts as sniping, one within CloseRangeDistance as rushing.

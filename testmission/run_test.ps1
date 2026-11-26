@@ -4,6 +4,7 @@
 # installed: CF, Dabs Framework, DayZ-Expansion-Core, DayZ-Expansion-AI.
 #   run_test.ps1          start with whatever brain.json the test profile already holds
 #   run_test.ps1 -Fresh   delete the test profile's AFHiveMind folder first (empty brain)
+# Ends with TEST PASSED (exit code 0) or TEST FAILED (exit code 1).
 param([switch]$Fresh)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
@@ -79,6 +80,42 @@ while ((Get-Date) -lt $deadline -and -not $done) {
     if ($game.HasExited) { 'DayZ exited'; break }
     Start-Sleep -Milliseconds 300
 }
-($text -split "`r?`n" | Select-String '\[AFHive\]|\[AFHiveMind\]|ompile|SCRIPT\s+\(E\)|SCRIPT ERROR').Line
+$lines = @(($text -split "`r?`n" | Select-String '\[AFHive\]|\[AFHiveMind\]|ompile|SCRIPT\s+\(E\)|SCRIPT ERROR').Line)
+$lines
 "test finished: $done; pictures: $($seen.Count)"
 if (-not $game.HasExited) { Stop-Process -Id $game.Id -Force -Confirm:$false }
+
+# A clear verdict and exit code, so tools\release.ps1 can stop on a failure.
+$failed = @($lines | Where-Object { $_ -cmatch 'FAILED' -or $_ -match 'ompile error|Can.t compile' })
+# Script errors: each one is read with the lines after it (message, class, function, call
+# stack). It fails the test only when it points into this mod's own scripts (a path under
+# AFHiveMind/Scripts, or an AFHM_ function). Errors from the game or other mods are grouped
+# by class and function and shown as warnings.
+$all = $text -split "`r?`n"
+$others = @{}
+for ($i = 0; $i -lt $all.Count; $i++) {
+    if ($all[$i] -notmatch 'SCRIPT\s*\(E\).*(Virtual Machine Exception|-- Stack trace --)') { continue }
+    $last = [Math]::Min($i + 40, $all.Count - 1)
+    $block = @($all[$i..$last])
+    $stop = 0
+    for ($j = 1; $j -lt $block.Count; $j++) { if ($block[$j] -match '-----------------') { $stop = $j; break } }
+    if ($stop -gt 0) { $block = $block[0..$stop] }
+    $body = $block -join "`n"
+    if ($body -match '(?i)afhivemind[/\\]scripts[/\\]|\bAFHM_\w+\(') {
+        $failed += ($block -join "`n").Trim()
+    } else {
+        $where = (@($block | Select-String 'Class:|Function:|Reason:|\(\) scripts' | Select-Object -First 3).Line | ForEach-Object { ($_ -replace '^.*SCRIPT\s*(\(E\))?\s*:\s*', '').Trim() }) -join ' | '
+        if (-not $where) { $where = 'no details in the log' }
+        $others[$where] = 1 + [int]$others[$where]
+    }
+    $i += [Math]::Max($block.Count - 1, 0)
+}
+foreach ($k in $others.Keys) { "warning, script error not from this mod (x$($others[$k])): $k" }
+if ($failed.Count -gt 0) { 'Failures:'; $failed }
+if (-not $done -or $failed.Count -gt 0) {
+    if (-not $done) { 'the mission did not reach TOUR DONE (script error, crash or timeout)' }
+    'TEST FAILED'
+    exit 1
+}
+'TEST PASSED'
+exit 0

@@ -166,6 +166,25 @@ modded class eAIDynamicPatrol
 		// A patrol Expansion saves across restarts is rebuilt from its save each time, and runs
 		// through here again: changing its gear then would take away what the bots carried.
 		bool fresh = !m_Config || !m_Config.Persist;
+
+		// Hot zones: Expansion picks the patrol's size, spawns the first bot (which comes through
+		// here before the patrol has a group) and then spawns the others one by one until
+		// m_NumberOfAI. Raising m_NumberOfAI now makes the patrol bigger; Expansion recounts it
+		// from its own settings at every spawn, so this never adds up across respawns.
+		// Only ordinary patrols: quest and object patrols can have a size that matters.
+		bool ordinary = m_Config && m_Config.ClassName() == "ExpansionAIPatrol";
+		if (fresh && ordinary && !m_Group && m_NumberOfAI > 0)
+		{
+			int extra = hm.ExtraBotsFor(m_Position, m_NumberOfAI);
+			if (extra > 0)
+			{
+				int planned = m_NumberOfAI;
+				m_NumberOfAI = planned + extra;
+				if (hm.m_Config.DebugLevel >= 1)
+					AFHM_Util.Log("hot zone: " + name + " at " + hm.ZoneLabel(hm.ZoneKey(m_Position)) + " spawns " + m_NumberOfAI.ToString() + " bots instead of " + planned.ToString());
+			}
+		}
+
 		hm.TuneBot(ai, name, m_Position, fresh);
 	}
 };
