@@ -303,6 +303,19 @@ class CustomMission: MissionGameplay
 				if (m_HiveStepTime >= 6)
 				{
 					ReportPatrol("Bravo", m_Bravo);
+					// Bravo spawned where Alpha was wiped out: the hot zone should make it bigger.
+					if (m_Bravo && m_Bravo.m_Group)
+					{
+						int bravoExtra = AFHiveMind.Get().ExtraBotsFor(m_Bravo.m_Position, 4);
+						int bravoCount = m_Bravo.m_Group.Count();
+						int bravoWanted = 4 + bravoExtra;
+						if (bravoExtra <= 0)
+							Print("[AFHive] FAILED: the zone where Alpha died does not count as a hot zone");
+						else if (bravoCount != bravoWanted)
+							Print("[AFHive] FAILED: Bravo has " + bravoCount.ToString() + " bots, the hot zone should have made it " + bravoWanted.ToString());
+						else
+							Print("[AFHive] hot zone: Bravo asked for 4 bots and got " + bravoCount.ToString());
+					}
 					SpawnLoneBots();
 					// Now pretend the community snipes: Charlie should get marksman rifles.
 					AFHiveMind hmc = AFHiveMind.Get();

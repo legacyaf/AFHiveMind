@@ -76,6 +76,20 @@ class AFHiveMind
 			cfg.MemoryHalfLifeHours = 72;
 		if (cfg.PinnedDifficulty > 1)
 			cfg.PinnedDifficulty = 1;
+		if (cfg.HotZoneExtraBotsMax < 0)
+			cfg.HotZoneExtraBotsMax = 0;
+		// Bring an older config.json up to date. 0.4.0: the per-player boost is off by default;
+		// a file still holding the old default (0.2) gets the new one, a value the admin chose
+		// (anything else) is kept.
+		if (cfg.ConfigVersion < 2)
+		{
+			if (Math.AbsFloat(cfg.PlayerOffsetMax - 0.2) < 0.001)
+			{
+				cfg.PlayerOffsetMax = 0;
+				AFHM_Util.Log("config.json: PlayerOffsetMax set from 0.2 to the new default 0 (difficulty follows the community, not one player)");
+			}
+			cfg.ConfigVersion = 2;
+		}
 		m_Config = cfg;
 		// Write it back: a config.json from an older version gains the new settings, with
 		// their defaults, while every value the admin set is kept.
@@ -432,6 +446,16 @@ class AFHiveMind
 		return cx.ToString() + " / " + cz.ToString();
 	}
 
+	// The middle of a zone, from its key.
+	vector ZoneCentre(string key)
+	{
+		array<string> parts = new array<string>;
+		key.Split("_", parts);
+		if (parts.Count() != 2)
+			return vector.Zero;
+		return Vector((parts[0].ToInt() + 0.5) * m_Config.ZoneSize, 0, (parts[1].ToInt() + 0.5) * m_Config.ZoneSize);
+	}
+
 	AFHM_ZoneStats GetZone(vector pos)
 	{
 		string key = ZoneKey(pos);
@@ -695,6 +719,33 @@ class AFHiveMind
 		return best;
 	}
 
+	// Hot zones: how strongly players farm bots in a zone, from 0 (not at all, or too few fights
+	// to tell) to 1 (players win 15 points or more above the target there).
+	float HotZoneStrength(vector pos)
+	{
+		AFHM_ZoneStats zone;
+		if (!m_Brain.Zones.Find(ZoneKey(pos), zone) || zone.BotsKilled + zone.PlayersKilled < m_Config.MinSamples)
+			return 0;
+		float over = WinRate(zone.BotsKilled, zone.PlayersKilled) - m_Config.TargetPlayerWinRate;
+		return Math.Clamp(over / 0.15, 0, 1);
+	}
+
+	// Extra bots for a patrol of baseCount spawning at pos.
+	int ExtraBotsFor(vector pos, int baseCount)
+	{
+		if (!m_Config.Enabled || !m_Config.HotZoneExtraBots || baseCount <= 0)
+			return 0;
+		float strength = HotZoneStrength(pos);
+		if (strength <= 0)
+			return 0;
+		int extra = Math.Round(baseCount * m_Config.HotZoneExtraShareMax * strength);
+		if (extra > m_Config.HotZoneExtraBotsMax)
+			extra = m_Config.HotZoneExtraBotsMax;
+		if (extra < 0)
+			extra = 0;
+		return extra;
+	}
+
 	// Called for every bot a patrol spawns, after Expansion applied the patrol's own settings,
 	// and (see eAIBase.AFHM_TuneLate) for bots other mods create without a patrol.
 	void TuneBot(eAIBase ai, string patrolName, vector pos, bool allowRoles = false)
@@ -923,7 +974,11 @@ class AFHiveMind
 		{
 			AFHM_ZoneStats hot = m_Brain.Zones.Get(hotKey);
 			float hotOffset = Math.Clamp(WinRate(hot.BotsKilled, hot.PlayersKilled) - m_Config.TargetPlayerWinRate, -m_Config.ZoneOffsetMax, m_Config.ZoneOffsetMax);
-			ins.Insert("Bots die most around " + ZoneLabel(hotKey) + " (" + AFHM_Util.F(hot.BotsKilled, 1) + " lost, " + AFHM_Util.F(hot.PlayersKilled, 1) + " players killed): local difficulty " + Signed(hotOffset) + ".");
+			string hotLine = "Bots die most around " + ZoneLabel(hotKey) + " (" + AFHM_Util.F(hot.BotsKilled, 1) + " lost, " + AFHM_Util.F(hot.PlayersKilled, 1) + " players killed): local difficulty " + Signed(hotOffset);
+			float hotStrength = HotZoneStrength(ZoneCentre(hotKey));
+			if (m_Config.HotZoneExtraBots && hotStrength > 0)
+				hotLine += ", patrols there up to " + AFHM_Util.Pct(m_Config.HotZoneExtraShareMax * hotStrength) + " bigger (at most +" + m_Config.HotZoneExtraBotsMax.ToString() + " bots)";
+			ins.Insert(hotLine + ".");
 		}
 
 		int peakHour = -1;
@@ -944,7 +999,7 @@ class AFHiveMind
 	array<string> BuildReport(bool withPlayers)
 	{
 		array<string> r = new array<string>;
-		r.Insert("AF HIVEMIND - generation " + m_Brain.Generation.ToString() + " - " + AFHM_Util.Now());
+		r.Insert("AF HIVEMIND " + AFHM_Const.VERSION + " - generation " + m_Brain.Generation.ToString() + " - " + AFHM_Util.Now());
 		string state = "ON";
 		if (!m_Config.Enabled)
 			state = "OFF (Enabled is false in config.json)";

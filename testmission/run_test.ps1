@@ -4,6 +4,7 @@
 # installed: CF, Dabs Framework, DayZ-Expansion-Core, DayZ-Expansion-AI.
 #   run_test.ps1          start with whatever brain.json the test profile already holds
 #   run_test.ps1 -Fresh   delete the test profile's AFHiveMind folder first (empty brain)
+# Ends with TEST PASSED (exit code 0) or TEST FAILED (exit code 1).
 param([switch]$Fresh)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
@@ -79,6 +80,17 @@ while ((Get-Date) -lt $deadline -and -not $done) {
     if ($game.HasExited) { 'DayZ exited'; break }
     Start-Sleep -Milliseconds 300
 }
-($text -split "`r?`n" | Select-String '\[AFHive\]|\[AFHiveMind\]|ompile|SCRIPT\s+\(E\)|SCRIPT ERROR').Line
+$lines = @(($text -split "`r?`n" | Select-String '\[AFHive\]|\[AFHiveMind\]|ompile|SCRIPT\s+\(E\)|SCRIPT ERROR').Line)
+$lines
 "test finished: $done; pictures: $($seen.Count)"
 if (-not $game.HasExited) { Stop-Process -Id $game.Id -Force -Confirm:$false }
+
+# A clear verdict and exit code, so tools\release.ps1 can stop on a failure.
+$failed = @($lines | Where-Object { $_ -match 'FAILED|ompile error|Can.t compile' })
+if (-not $done -or $failed.Count -gt 0) {
+    if (-not $done) { 'the mission did not reach TOUR DONE (script error, crash or timeout)' }
+    'TEST FAILED'
+    exit 1
+}
+'TEST PASSED'
+exit 0

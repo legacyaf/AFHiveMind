@@ -17,8 +17,7 @@ No wallhacks, no aimbots, no knowledge of where players are. HiveMind turns the 
 [*][b]Accuracy[/b]: from 60% to 150% of what you configured.
 [*][b]Damage dealt[/b]: from 75% to 130% of what you configured.
 [*][b]Sight and hearing[/b]: how far bots notice you (75% to 110%, never past about 1.1 km) and how far they come to check a gunshot (70% to 130%).
-[*][b]Hot zones[/b]: bots in an area players farm get a little tougher; areas where bots dominate ease off.
-[*][b]Nearby players[/b]: bots spawning near a player who rarely loses get a little tougher, and near a struggling player a little easier.
+[*][b]Hot zones[/b]: in an area players farm, bots get a little tougher and patrols come out bigger (up to half as many bots again, at most 3 extra). Areas where bots dominate ease off.
 [*][b]Range counter[/b]: if your players mostly snipe, bots flank wider and up to 40% of new patrol bots carry scoped rifles. Snipers are also hunted down from further away. If they mostly rush, bots push straight in and up to 40% carry automatics. Bots keep their faction's clothes and gear; only the weapon changes.
 [*][b]Night counter[/b]: bots without night vision are nearly blind at night. If many fights happen after dark, up to half of new patrol bots get NVGs and switch them on at dusk. The goggles are removed when the bot dies, so they never become loot.
 [*][b]Bounty loot[/b]: harder bots may drop one extra item when a player kills them (up to 75% chance), from a common list (medical, ammo, magazines) or a rare one (NVG, rangefinder, scopes, plate carrier). Tougher bots, better rewards.
@@ -35,6 +34,7 @@ Every one of these limits is a setting in config.json.
 [h2]For admins[/h2]
 [list]
 [*][b]F9 debug panel[/b] (admins only, listed by Steam64 id): current difficulty, what it has learned in plain words, and the last patrols it tuned with the reason for each number.
+[*][b]Full guide for server owners[/b] (install, settings, troubleshooting): https://github.com/legacyaf/AFHiveMind/blob/main/docs/SERVER_GUIDE.md
 [*][b]F10 admin controls[/b]: freeze learning, pin the difficulty, run a learning step now, or reset the brain, all in game.
 [*][b]Follows the community, not one player[/b]: no single player's fights can set the difficulty alone.
 [*][b]Readable files[/b] in the server profile, folder AFHiveMind: brain.json (everything it learned), report.txt (the same in plain English), hivemind.log (every fight it saw and every change of mind), config.json (all settings).
