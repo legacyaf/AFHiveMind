@@ -43,7 +43,15 @@ All of this is boiled down into one **difficulty** number between 0 and 1:
 | 0.5 | Bots exactly as the admins configured them |
 | 1.0 | Hardest the server allows |
 
-It moves slowly. A single bad fight won't swing it; it needs a pattern. Until it has seen at least 3 fights, it changes nothing.
+It moves slowly. A single bad fight won't swing it; it needs a pattern.
+
+### It listens to the whole community
+
+The difficulty is shared by everyone, so no single player gets to set it:
+
+- It doesn't move at all until about **20 fights** count across the server.
+- One player's fights count for **8 at most**, so a single strong player (or a single struggling one) can't drag the bots up or down for everyone. With these settings it takes at least three players who fight bots before anything changes.
+- One player adds **3 fights at most** to each learning step, so one long killing spree is spread out instead of landing all at once.
 
 ### It forgets, too
 
@@ -62,14 +70,13 @@ When a bot spawns, HiveMind takes the settings the admins gave that bot and scal
 
 There is also a setting for how much damage bots *take*, but it is **switched off** on our server for now.
 
-### Local adjustments
+### Hot zones
 
-On top of the server-wide difficulty, two smaller corrections apply:
+If players keep farming bots in one area (the map is split into 500 m squares), bots spawning there get a bit tougher (up to +0.15 difficulty), and **patrols there come out bigger**: up to half as many bots again, and never more than 3 extra. If bots keep winning somewhere, that area eases off instead.
 
-- **Hot zones.** If players keep farming bots in one area, bots spawning there get a bit tougher (up to +0.15 difficulty). If bots keep winning somewhere, that area eases off by the same amount.
-- **Nearby players.** If a player who rarely loses to bots is within 1.2 km of where a bot spawns, that bot gets a bit tougher (up to +0.2). A player who struggles gets bots that are a bit easier.
+So the bots in a popular farming spot start fighting back. This only affects ordinary roaming patrols: quest objectives and fixed camps keep their size, and so do patrols the server saves across restarts.
 
-That means a skilled player roaming alone may run into stiffer resistance than a new player nearby, and the bots in a popular farming spot will start fighting back.
+There is **no personal adjustment**: the bots near you are not made harder because you are good, or easier because you are struggling. The difficulty follows the community, not one player.
 
 
 ### Bots answer how you fight
@@ -103,7 +110,7 @@ So when the bots get tougher, fighting them pays more.
 - **Expansion object patrols** at buildings, and quest bots
 - **Bots from other mods** that create Expansion AI directly, such as the convoy and the helicopter and tank patrols. They get the difficulty and tactics changes, but keep their own weapons and gear.
 
-**Not affected:** bots you have recruited to follow you. Your squadmates are yours, and HiveMind leaves them alone.
+**Not affected:** bots you have recruited to follow you (your squadmates are yours), and quest givers and traders. Fights with quest givers and traders don't count either.
 
 ## What it does NOT do
 
@@ -112,7 +119,7 @@ So when the bots get tougher, fighting them pays more.
 - It doesn't track player-versus-player fights.
 - It doesn't read chat, voice, or anything you type.
 - It doesn't make bots invincible or one-shot you. Every value has a hard limit set by the admins.
-- It doesn't spawn more bots. *(Planned: see below.)*
+- It doesn't spawn extra patrols. The only bigger groups are ordinary patrols in hot zones, up to 3 extra bots each.
 
 ## Your data
 
@@ -126,21 +133,21 @@ Nothing leaves the server. It isn't shared with other servers or any outside ser
 
 ## For admins
 
-- **Debug panel.** Press **F9** in game to see the current difficulty, what HiveMind has learned (in plain words), and the last patrols it tuned with the reason for each number. Only listed admins can see it.
+- **Debug panel.** Press **F9** in game to see the version, the current difficulty, what HiveMind has learned (in plain words), and the last patrols it tuned with the reason for each number. Only listed admins can see it.
+- **Admin controls.** Press **F10** for the same report with buttons: freeze learning, pin the difficulty (or nudge it up or down by 0.05), unpin it, run a learning step now, or reset the brain (two clicks; the old brain is kept as a backup). Every press is logged. If the key does nothing, bind it under Controls > AF HiveMind.
 - **Readable files.** On the server, in `profile\AFHiveMind\`:
   - `brain.json`: everything it has learned
   - `report.txt`: the same in plain English
   - `hivemind.log`: every fight it saw and every change of mind
 - **Every limit is a setting** in `config.json`: the target win rate, how fast it learns, how fast it forgets, every scaling limit, and an on/off switch. It is re-read every 10 minutes, so changes take effect without a restart.
-- **Reset.** Deleting `brain.json` makes it start over from "as configured".
+- **Reset.** The F10 reset button, or deleting `brain.json` while the server is stopped, makes it start over from "as configured". A daily backup of `brain.json` is kept in `AFHiveMind\backups` (the last 7).
 
 ## Planned
 
 These are ideas, not promises. They will be announced when they land:
 
-- **Group size.** Adding or removing a bot per patrol instead of only making each one stronger.
 - **Patrol placement.** More patrols where players actually fight, and at the hours they're online.
-- **Admin controls** in the panel: freeze learning, pin a difficulty, or reset with a button.
+- **Headshot counter.** If players mostly land headshots, more bots wear helmets.
 
 ## FAQ
 
@@ -148,10 +155,10 @@ These are ideas, not promises. They will be announced when they land:
 No. The target is that players win about 80% of their fights with bots, and every setting has a ceiling.
 
 **Does dying a lot make the game easier for me?**
-A little, for bots that spawn near you, and only within limits. It is meant to keep fights fair, not to reward dying.
+No, not personally. Your fights count towards the community's difficulty like everyone else's, and no more than anyone else's.
 
 **Can we game it by dying on purpose?**
-Not really. It looks at the whole server over days, and one person's deaths barely move the global number. The personal adjustment is capped too.
+Not really. It looks at the whole server over days, one player counts for at most 8 fights, and it needs fights from several players before it moves at all.
 
 **Does my PC need anything extra?**
 No. HiveMind runs on the server. If we also load it on clients, the only extra is the admin panel, which regular players won't see.
