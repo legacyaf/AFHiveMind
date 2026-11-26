@@ -61,7 +61,7 @@ In the server profile folder, under `AFHiveMind\`:
 
 Press **F9** in game (rebindable under Controls > AF HiveMind). It shows the current generation and difficulty, what was learned in plain words, and the latest patrols it tuned with the reason for each figure. On a server, only Steam64 ids listed under `Admins` in `config.json` get the report.
 
-Press **F10** for the admin controls: the same report with the mouse cursor and these buttons. Esc or Close shuts it.
+Press **F10** for the admin controls: the same report with the mouse cursor and these buttons. Esc or Close shuts it. If you had the mod before 0.3.0, DayZ may leave this key blank for you: bind it under Controls > AF HiveMind > AF HiveMind admin controls.
 
 | Button | What it does |
 |---|---|
