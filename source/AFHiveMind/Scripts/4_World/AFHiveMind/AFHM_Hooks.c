@@ -171,7 +171,9 @@ modded class eAIDynamicPatrol
 		// here before the patrol has a group) and then spawns the others one by one until
 		// m_NumberOfAI. Raising m_NumberOfAI now makes the patrol bigger; Expansion recounts it
 		// from its own settings at every spawn, so this never adds up across respawns.
-		if (fresh && !m_Group && m_NumberOfAI > 0)
+		// Only ordinary patrols: quest and object patrols can have a size that matters.
+		bool ordinary = m_Config && m_Config.ClassName() == "ExpansionAIPatrol";
+		if (fresh && ordinary && !m_Group && m_NumberOfAI > 0)
 		{
 			int extra = hm.ExtraBotsFor(m_Position, m_NumberOfAI);
 			if (extra > 0)

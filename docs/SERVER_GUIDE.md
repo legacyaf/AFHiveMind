@@ -192,12 +192,12 @@ HiveMind tunes each bot when it spawns, starting from the bot's own Expansion se
 
 ### Hot zones: more bots where players farm them
 
-When players win far more often than the target in a zone, patrols spawning there come out **bigger**:
+When players win far more often than the target in a zone, ordinary patrols spawning there come out **bigger**. Quest and object patrols keep their size:
 
 - up to 50% more bots;
 - never more than 3 extra per patrol.
 
-For example, in a zone where players win almost every fight, a 4-bot patrol comes out with 6 bots. The extra bots join the patrol like any other member. Saved (persistent) patrols are never made bigger. The report shows how much bigger patrols in the hottest zone are, and `hivemind.log` lists each patrol that grew.
+For example, in a zone where players win almost every fight, a 4-bot patrol comes out with 6 bots. The extra bots join the patrol like any other member. Saved (persistent) patrols are never made bigger. The report's "Bots die most around ..." line says how much bigger patrols get in that zone, and with `DebugLevel` 1 or higher `hivemind.log` lists each patrol that grew.
 
 ### Range counter
 
@@ -223,6 +223,7 @@ A bot tuned above difficulty 0.6 that is killed by a player may drop one extra i
 | Expansion patrols, object patrols, quest enemies | Yes |
 | Bots other mods create from Expansion AI (convoys, helicopter or tank crews) | Yes, a few seconds after they appear. They get the flanking change but keep their own weapons. |
 | Saved (persistent) patrols | Tuned, but their weapons and gear are never changed, and they are never made bigger |
+| Quest and object patrols | Tuned, but never made bigger |
 | Bots following a player (recruited) | No |
 | Quest givers and traders | No, and fights with them don't count |
 
@@ -248,7 +249,7 @@ Change a value, save, and it applies at the next learning step, or at once after
 | Setting | Default | Meaning |
 |---|---|---|
 | `Enabled` | true | false switches HiveMind off: no learning, no tuning. |
-| `DebugLevel` | 1 | 0 logs only changes of mind. 1 also logs every fight. 2 also logs every tuned bot (busy). |
+| `DebugLevel` | 1 | 0 logs only changes of mind and admin actions. 1 also logs every fight and every patrol a hot zone made bigger. 2 also logs every tuned bot (busy). |
 | `Admins` | [] | Steam64 ids allowed to use F9 and F10. |
 | `TuneOtherBots` | true | Tune bots that other mods create from Expansion AI. |
 | `OtherBotsDelaySeconds` | 3 | How long after such a bot appears it is tuned, so its own mod can set it up first. |

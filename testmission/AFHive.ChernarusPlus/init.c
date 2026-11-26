@@ -316,6 +316,10 @@ class CustomMission: MissionGameplay
 						else
 							Print("[AFHive] hot zone: Bravo asked for 4 bots and got " + bravoCount.ToString());
 					}
+					else
+					{
+						Print("[AFHive] FAILED: Bravo has no group, so the hot zone could not be checked");
+					}
 					SpawnLoneBots();
 					// Now pretend the community snipes: Charlie should get marksman rifles.
 					AFHiveMind hmc = AFHiveMind.Get();

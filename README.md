@@ -30,7 +30,7 @@ The figure follows the whole community, not its best player. No player counts fo
 
 Two local corrections can sit on top of the global figure: bots in a 500 m zone where players farm them get up to +0.15 (`ZoneOffsetMax`), and the reverse where bots dominate. Bots spawning near a player who rarely loses can get up to `PlayerOffsetMax` extra; that is 0 (off) since 0.4.0, and an older `config.json` still holding the old default 0.2 is moved to 0 automatically.
 
-**Hot zones.** A patrol spawning in a zone where players win far more often than the target comes out bigger: up to `HotZoneExtraShareMax` (50%) more bots, never more than `HotZoneExtraBotsMax` (3) extra. The extra bots are added by raising the patrol's `m_NumberOfAI` while Expansion sets up its first bot, before it spawns the others, so Expansion spawns and manages them as ordinary members. Saved (`Persist`) patrols are never made bigger. `HotZoneExtraBots` switches it off.
+**Hot zones.** An ordinary patrol (not a quest or object patrol) spawning in a zone where players win far more often than the target comes out bigger: up to `HotZoneExtraShareMax` (50%) more bots, never more than `HotZoneExtraBotsMax` (3) extra. The extra bots are added by raising the patrol's `m_NumberOfAI` while Expansion sets up its first bot, before it spawns the others, so Expansion spawns and manages them as ordinary members. Saved (`Persist`) patrols are never made bigger. `HotZoneExtraBots` switches it off.
 
 Every limit above is a number in `config.json`. `config.json` is written back each time it is read, so settings added in a newer version appear in an older file with their defaults, while your own values are kept.
 

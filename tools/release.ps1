@@ -31,12 +31,14 @@ if ($SkipGitCheck) {
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Stop-Release 'git is not installed (winget install --id Git.Git -e).' }
     $branch = (git rev-parse --abbrev-ref HEAD).Trim()
     if ($branch -ne 'main') { Stop-Release "you are on branch '$branch', not main. Run: git checkout main; git pull" }
-    $dirty = @(git status --porcelain -- source tools testmission workshop)
+    $dirty = @(git status --porcelain -- source tools testmission workshop docs README.md '@AFHiveMind')
     if ($dirty.Count -gt 0) { Stop-Release ("there are uncommitted changes:`n" + ($dirty -join "`n")) }
     git fetch -q origin main
     if ($LASTEXITCODE -ne 0) { Stop-Release 'could not reach GitHub to check for new commits.' }
     $behind = [int](git rev-list --count HEAD..origin/main).Trim()
     if ($behind -gt 0) { Stop-Release "GitHub has $behind newer commit(s) on main. Run: git pull" }
+    $ahead = [int](git rev-list --count origin/main..HEAD).Trim()
+    if ($ahead -gt 0) { Stop-Release "$ahead local commit(s) are not on GitHub yet. Push them (git push) so the release matches GitHub." }
     Write-Host "On main, clean, up to date ($((git rev-parse --short HEAD).Trim()))."
 }
 

@@ -1,7 +1,7 @@
 ﻿[h2]0.4.0[/h2]
 [list]
 [*][b]Hot zones get more bots[/b]: a patrol spawning where players farm bots comes out bigger, up to half as many bots again and never more than 3 extra. Settings: HotZoneExtraBots, HotZoneExtraShareMax, HotZoneExtraBotsMax.
-[*][b]No more per-player boost[/b]: bots near a strong player no longer get extra difficulty, so the difficulty follows the whole community. An existing config.json is updated automatically unless you changed PlayerOffsetMax yourself.
+[*][b]No more per-player boost[/b]: bots near a strong player no longer get extra difficulty, so the difficulty follows the whole community. An existing config.json still holding the old default (0.2) is moved to 0 automatically; any other value you set is kept.
 [*]The F9 and F10 report now shows the mod's version on its first line.
 [*]New guide for server owners: https://github.com/legacyaf/AFHiveMind/blob/main/docs/SERVER_GUIDE.md
 [/list]

@@ -86,7 +86,15 @@ $lines
 if (-not $game.HasExited) { Stop-Process -Id $game.Id -Force -Confirm:$false }
 
 # A clear verdict and exit code, so tools\release.ps1 can stop on a failure.
-$failed = @($lines | Where-Object { $_ -match 'FAILED|ompile error|Can.t compile' })
+$failed = @($lines | Where-Object { $_ -cmatch 'FAILED' -or $_ -match 'ompile error|Can.t compile' })
+# A script error during the run fails it when the error or its next few lines (the call stack)
+# mention this mod. Other mods' errors are shown as warnings only.
+$scriptErrors = [regex]::Matches($text, '(?m)^.*SCRIPT\s*(\(E\)|ERROR).*(\r?\n.*){0,8}')
+foreach ($e in $scriptErrors) {
+    if ($e.Value -match 'AFHiveMind|AFHM_|AFHive') { $failed += $e.Value.Trim() }
+    else { 'warning, script error from another mod: ' + ($e.Value -split "`r?`n")[0] }
+}
+if ($failed.Count -gt 0) { 'Failures:'; $failed }
 if (-not $done -or $failed.Count -gt 0) {
     if (-not $done) { 'the mission did not reach TOUR DONE (script error, crash or timeout)' }
     'TEST FAILED'
