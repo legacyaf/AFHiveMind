@@ -445,6 +445,24 @@ class CustomMission: MissionGameplay
 					hmPin.m_Config.NotifyMapEasier = "TEST easier: {was} to {level}. {changes}";
 					// Discord: the runner listens on this local address and reports what arrives.
 					hmPin.m_Config.DiscordWebhookUrl = "http://127.0.0.1:8765/webhook";
+					// run_test.ps1 -Webhook: post to a real Discord channel instead.
+					string realHook = AFHM_Const.DIR + "/test_webhook.txt";
+					if (FileExist(realHook))
+					{
+						FileHandle hookFh = OpenFile(realHook, FileMode.READ);
+						string hookUrl;
+						if (hookFh)
+						{
+							FGets(hookFh, hookUrl);
+							CloseFile(hookFh);
+						}
+						hookUrl = hookUrl.Trim();
+						if (hookUrl != "")
+						{
+							hmPin.m_Config.DiscordWebhookUrl = hookUrl;
+							Print("[AFHive] discord: posting to the real webhook from the runner");
+						}
+					}
 					AFHM_Discord.s_Posted = 0;
 					AFHM_Discord.s_Delivered = 0;
 					// Reset one area from the hot-zone list: it must be forgotten.

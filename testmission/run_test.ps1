@@ -7,7 +7,9 @@
 #   run_test.ps1          start with whatever brain.json the test profile already holds
 #   run_test.ps1 -Fresh   delete the test profile's AFHiveMind folder first (empty brain)
 # Ends with TEST PASSED (exit code 0) or TEST FAILED (exit code 1).
-param([switch]$Fresh)
+#   run_test.ps1 -Webhook <url>   also post to a real Discord webhook (the URL is put only in the
+#                                 git-ignored test profile, and removed when the test ends)
+param([switch]$Fresh, [string]$Webhook = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -44,6 +46,12 @@ if ($Fresh) { Remove-Item (Join-Path $profiles 'AFHiveMind') -Recurse -Force -Co
 
 # DayZ on this PC is shared with other work: never close a game this script did not start.
 if (Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue) { throw 'DayZDiag is already running (someone else may be using it). Not starting the test.' }
+$webhookFile = Join-Path $profiles 'AFHiveMind\test_webhook.txt'
+Remove-Item $webhookFile -ErrorAction SilentlyContinue
+if ($Webhook) {
+    New-Item -ItemType Directory -Force (Split-Path $webhookFile) | Out-Null
+    [IO.File]::WriteAllText($webhookFile, $Webhook.Trim())
+}
 # A stand-in for Discord: the mission points the webhook at 127.0.0.1:8765, and every post that
 # arrives is saved to captures\webhook.txt (only this machine can reach it).
 $hookFile = Join-Path $out 'webhook.txt'
@@ -158,6 +166,7 @@ $lines
 "test finished: $done; pictures: $($seen.Count)"
 if (-not $game.HasExited) { Stop-Process -Id $game.Id -Force -Confirm:$false }
 Stop-Job $hook -ErrorAction SilentlyContinue; Remove-Job $hook -Force -ErrorAction SilentlyContinue
+Remove-Item $webhookFile -ErrorAction SilentlyContinue
 if (Test-Path $hookFile) { Get-Content $hookFile | ForEach-Object { "webhook received: $_" } } else { 'webhook received: nothing' }
 
 # A clear verdict and exit code, so tools\release.ps1 can stop on a failure.
