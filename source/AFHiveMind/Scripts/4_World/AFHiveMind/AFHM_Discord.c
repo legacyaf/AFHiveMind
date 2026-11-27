@@ -67,6 +67,10 @@ class AFHM_Discord
 			api = CreateRestApi();
 		if (!api)
 			return;
+		// Discord answers a webhook post with an empty "204", which the game's web client reports
+		// as an error; with wait=true it answers "200" and the message, so a success is a success.
+		if (url.IndexOf("discord.com/api/webhooks/") > 0 && url.IndexOf("?") < 0)
+			url += "?wait=true";
 		RestContext ctx = api.GetRestContext(url);
 		if (!ctx)
 			return;

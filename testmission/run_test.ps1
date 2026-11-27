@@ -65,7 +65,7 @@ $hook = Start-Job -ArgumentList $hookFile -ScriptBlock {
                 $len = 0; if ($text -match '(?i)content-length:\s*(\d+)') { $len = [int]$Matches[1] }
             } while ($n -gt 0 -and ($head -lt 0 -or $got - $head - 4 -lt $len))
         } catch {}
-        $resp = [Text.Encoding]::ASCII.GetBytes("HTTP/1.1 204 No Content`r`nConnection: close`r`n`r`n")
+        $resp = [Text.Encoding]::ASCII.GetBytes("HTTP/1.1 200 OK`r`nContent-Type: application/json`r`nContent-Length: 2`r`nConnection: close`r`n`r`n{}")
         try { $s.Write($resp, 0, $resp.Length) } catch {}
         $c.Close()
         $body = $text; $head = $text.IndexOf("`r`n`r`n"); if ($head -ge 0) { $body = $text.Substring($head + 4) }
