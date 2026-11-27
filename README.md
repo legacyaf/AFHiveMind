@@ -34,6 +34,8 @@ Two local corrections can sit on top of the global figure: bots in a 500 m zone 
 
 Every limit above is a number in `config.json`. `config.json` is written back each time it is read, so settings added in a newer version appear in an older file with their defaults, while your own values are kept.
 
+**Announcements.** When the threat level (1-10, 5 = as configured) changes for the whole map, or a farmed area moves above or below the map's level, every player gets an Expansion notification naming the area (nearest town) and what changed. `Notify`, `NotifyPlayers` (false = admins only), `NotifyAreasMax` and `NotifySeconds` control it. The first start after an install or update only records the level.
+
 **Night counter.** Each lethal fight is marked day or night by the bot's own reckoning: Expansion's daylight figure, which it also uses to decide when bots switch on lights and NVG. Once the night share passes `NightShareStart` (30%), up to `NightGearShareMax` (50%) of new patrol bots get night-vision goggles on a headstrap; the full share is reached at `NightShareFull` (70%). Bots switch them on themselves at night. With `NightGearLootable` false (the default), the goggles are removed when the bot dies.
 
 **Bounty loot.** A bot tuned above `BountyFromDifficulty` (0.6) and killed by a player may drop one extra item where it falls, from `BountyCommon` or `BountyRare`. The chance rises to `BountyChanceMax` (75%) at difficulty 1, and the rare share to `BountyRareShareMax` (50%). Unknown class names are logged and skipped.

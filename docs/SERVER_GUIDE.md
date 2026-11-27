@@ -1,6 +1,6 @@
 # AF HiveMind: guide for server owners
 
-This guide covers installing AF HiveMind, using it, tuning it and fixing common problems. It applies to version 0.4.0 and later.
+This guide covers installing AF HiveMind, using it, tuning it and fixing common problems. It applies to version 0.5.0 and later.
 
 ## Contents
 
@@ -113,17 +113,30 @@ Players who are not listed see "you are not listed under Admins in config.json".
 
 ### F10: the admin controls
 
-**F10** opens the same report in the middle of the screen, with the mouse cursor and these buttons. Press Esc or click Close to shut it.
+**F10** opens the admin controls in the middle of the screen: one see-through rounded window, with the report on the left and the buttons on the right. **Esc** or **Close** shuts it.
 
-| Button | What it does |
-|---|---|
-| **Freeze learning** | Stops learning. No fights are recorded and nothing fades. Bots are still tuned from what it already knows, and hard bots still drop bounty loot. Use it during events, when you test things yourself, or when you are happy with how the bots are. |
-| **Resume learning** | Starts learning again. |
-| **Evolve now** | Runs the 10-minute learning step at once. |
-| **Reset brain** | Takes two clicks. Forgets everything and starts again from "as configured". The old brain is kept in `AFHiveMind\backups` as `reset_brain_<date>_<time>.json`. Settings, the freeze and the pin are kept. |
-| **Pin difficulty** | Holds the difficulty at its current value. Fights are still learned from for tactics, zones and so on, but they no longer move the difficulty. |
-| **Pin -0.05 / Pin +0.05** | Pins the difficulty 0.05 lower or higher. Click several times for bigger steps. |
-| **Unpin** | Lets the difficulty learn again, starting from where it was pinned. |
+The report on both F9 and F10 is laid out like a chat:
+
+- **Threat level card** (blue): the level out of 10 with a 10-step bar, and status chips: learning on (green) or frozen (orange), pinned (orange), notifications on.
+- **Key facts** (grey card): difficulty, the players' win rate against the target, how many fights count and from how many players, what it remembers, lifetime totals, and when the next learning step runs.
+- **What it learned**, sorted into topics (Difficulty, How players fight, Hot zones, Time of day, Loot), each finding in its own grey bubble.
+- **Latest patrols** as blue bubbles: the patrol, the nearest town, and the numbers it gave the bots.
+
+What doesn't fit on the screen is in `report.txt` on the server.
+
+The buttons are grouped:
+
+| Group | Button | What it does |
+|---|---|---|
+| Learning | **Freeze learning** | Stops learning. No fights are recorded and nothing fades. Bots are still tuned from what it already knows, and hard bots still drop bounty loot. Use it during events, when you test things yourself, or when you are happy with how the bots are. |
+| | **Resume learning** | Starts learning again. |
+| | **Run a learning step now** | Runs the 10-minute learning step at once. |
+| Difficulty | **Pin the current level** | Holds the difficulty at its current value. Fights are still learned from for tactics, zones and so on, but they no longer move the difficulty. |
+| | **Easier -0.05 / Harder +0.05** | Pins the difficulty 0.05 lower or higher. Click several times for bigger steps. |
+| | **Unpin (learn again)** | Lets the difficulty learn again, starting from where it was pinned. |
+| Danger zone | **Reset brain** | Takes two clicks. Forgets everything and starts again from "as configured". The old brain is kept in `AFHiveMind\backups` as `reset_brain_<date>_<time>.json`. Settings, the freeze and the pin are kept. |
+
+A short note under the buttons confirms each press.
 
 Every button press is checked against `Admins` on the server and written to `hivemind.log` with the admin's name. Freeze and pin are saved in `config.json` as `Frozen` and `PinnedDifficulty`, so they survive restarts.
 
@@ -216,7 +229,16 @@ Bots without night vision are nearly blind at night. Once more than 30% of fight
 
 A bot tuned above difficulty 0.6 that is killed by a player may drop one extra item where it falls. The chance rises to 75% at difficulty 1, and so does the share taken from the rare list instead of the common one. Both lists are in `config.json`. Unknown item names are skipped and logged.
 
-### Which bots
+### Threat level announcements
+
+When the bots change, players hear about it through Expansion's notifications. The **threat level** runs from 1 to 10 and follows the difficulty: **5 is the bots exactly as you configured them**. Only a change of a whole level is announced; small adjustments stay quiet.
+
+- **Whole map:** "AI THREAT LEVEL 6/10: Bots across the whole map got tougher (level 5 to 6). Now: accuracy x1.05 (was x1.00), damage x1.03 (was x1.00), ..." The figures are multipliers of how you configured the bots.
+- **An area:** a farmed zone that sits above or below the map's level is named after the nearest town or village: "AI THREAT LEVEL 7/10: GRISHINO: Players keep winning around Grishino, so bots there are tougher than the rest of the map (level 7, map 6). ... Patrols there come out up to x1.4 as big (at most 3 extra bots)." When it drops back, players are told it is back to the map's level.
+
+Tougher is shown in red with a skull, easier in green with a shield. At most `NotifyAreasMax` area announcements go out per learning step, biggest changes first. Pinning, resetting or running a step from F10 is announced the same way. The first start after installing or updating announces nothing; it only records the current level. Every announcement is also written to `hivemind.log` ("announced: ..."). The F9 report shows the current level on its second line.
+
+Notifications use Expansion's own system, so they work with HiveMind loaded on the server only, and they follow Expansion's notification setting (`EnableNotification`).
 
 | Bots | Tuned? |
 |---|---|
@@ -324,6 +346,15 @@ Change a value, save, and it applies at the next learning step, or at once after
 | `BountyRareShareMax` | 0.5 | Share of drops from the rare list at difficulty 1. |
 | `BountyCommon` / `BountyRare` | medical, ammo... / NVG, scopes... | Item class names. Use any item from your mods. |
 
+### Announcements
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `Notify` | true | false: no threat level notifications at all. |
+| `NotifyPlayers` | true | false: only the admins listed in `Admins` get them. |
+| `NotifyAreasMax` | 2 | Area announcements per learning step at most. 0: whole map only. |
+| `NotifySeconds` | 12 | How long each notification stays on screen. |
+
 ## 10. Common recipes
 
 | You want | Do this |
@@ -336,6 +367,8 @@ Change a value, save, and it applies at the next learning step, or at once after
 | No extra bots in hot zones | `HotZoneExtraBots`: false. |
 | Bots that never change weapons | `RoleShareMax`: 0. |
 | No extra loot | `BountyLoot`: false. |
+| No threat level notifications | `Notify`: false. Admins only: `NotifyPlayers`: false. |
+| Fewer area notifications | `NotifyAreasMax`: 1, or 0 for the whole map only. |
 | Leave other mods' bots alone | `TuneOtherBots`: false. |
 | Switch it all off without uninstalling | `Enabled`: false. Bots spawned afterwards are exactly as configured. |
 

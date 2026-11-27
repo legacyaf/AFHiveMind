@@ -38,6 +38,7 @@ class CustomMission: MissionGameplay
 	protected int m_HiveStep = -1;
 	protected float m_HiveStepTime;
 	protected int m_HiveVolleys;
+	protected float m_AnnouncedBefore;
 	protected eAIDynamicPatrol m_Alpha;
 	protected eAIDynamicPatrol m_Bravo;
 
@@ -241,6 +242,10 @@ class CustomMission: MissionGameplay
 				if (m_HiveTime >= 12)
 				{
 					PrintReport("at start");
+					// Announcements: the first look only records the current level (5/10).
+					AFHM_Announcer.Check(AFHiveMind.Get());
+					m_AnnouncedBefore = AFHiveMind.Get().m_Brain.AnnouncedDifficulty;
+					Print("[AFHive] announcer baseline: level " + AFHM_Announcer.Level(m_AnnouncedBefore).ToString() + ", nearest town to the test site: " + AFHM_Announcer.PlaceName(g_HivePos));
 					m_Alpha = SpawnPatrol("Alpha", 6, "0 0 40");
 					Next();
 				}
@@ -291,6 +296,18 @@ class CustomMission: MissionGameplay
 					hmCap.SaveConfig();
 					AFHiveMind.Get().Evolve();
 					PrintReport("after the player wiped out Alpha");
+					// 0.50 -> 0.55 is level 5 -> 6: the whole map must have been announced, and the
+					// test site's zone (players won every fight there) as an area above the map.
+					AFHM_Brain told = AFHiveMind.Get().m_Brain;
+					int mapNow = AFHM_Announcer.Level(told.Difficulty);
+					if (told.AnnouncedDifficulty < 0 || AFHM_Announcer.Level(told.AnnouncedDifficulty) != mapNow || mapNow == AFHM_Announcer.Level(m_AnnouncedBefore))
+						Print("[AFHive] FAILED: no map announcement (baseline " + m_AnnouncedBefore.ToString() + ", announced " + told.AnnouncedDifficulty.ToString() + ", difficulty " + told.Difficulty.ToString() + ")");
+					else
+						Print("[AFHive] map announcement made: level " + AFHM_Announcer.Level(m_AnnouncedBefore).ToString() + " to " + mapNow.ToString());
+					Print("[AFHive] areas announced above or below the map: " + told.AnnouncedAreas.Count().ToString());
+					if (told.AnnouncedAreas.Count() == 0)
+						Print("[AFHive] FAILED: no area announcement for the test site");
+					Print("[AFHive] SHOT notifications");
 					// Alpha died at close range, so the bots should lean to automatics. The test
 					// raises the share so that every Bravo bot swaps and the result is certain.
 					Print("[AFHive] style after Alpha: " + AFHiveMind.Get().Style().ToString() + ", role share " + AFHiveMind.Get().RoleShare().ToString() + ", flank x" + AFHiveMind.Get().FlankScale().ToString());
@@ -350,7 +367,50 @@ class CustomMission: MissionGameplay
 					m_BountyBefore = AFHiveMind.Get().m_Brain.TotalBountyDrops;
 					ShootPatrol(m_Delta);
 					Print("[AFHive] SHOT panel_after_learning");
-					Next();
+					m_HiveStep = 200;
+					m_HiveStepTime = 0;
+				}
+				break;
+			case 200:
+				// The admin controls (F10): open, picture, then the runner presses Esc.
+				if (m_HiveStepTime >= 2)
+				{
+					AFHM_ShowPanel(false);
+					Print("[AFHive] admin controls opened by the test: " + AFHM_OpenControls().ToString());
+					m_HiveStep = 201;
+					m_HiveStepTime = 0;
+				}
+				break;
+			case 201:
+				if (m_HiveStepTime >= 4)
+				{
+					Print("[AFHive] SHOT admin_controls");
+					m_HiveStep = 202;
+					m_HiveStepTime = 0;
+				}
+				break;
+			case 202:
+				if (m_HiveStepTime >= 2)
+				{
+					Print("[AFHive] PRESS ESC");
+					m_HiveStep = 203;
+					m_HiveStepTime = 0;
+				}
+				break;
+			case 203:
+				if (!AFHM_ControlsOpen() || m_HiveStepTime >= 8)
+				{
+					UIScriptedMenu after = GetGame().GetUIManager().GetMenu();
+					if (AFHM_ControlsOpen())
+						Print("[AFHive] FAILED: Esc did not close the admin controls");
+					else if (after)
+						Print("[AFHive] FAILED: Esc closed the admin controls but opened " + after.ClassName());
+					else
+						Print("[AFHive] Esc closed the admin controls, and no other menu opened");
+					if (after)
+						after.Close();
+					m_HiveStep = 4;
+					m_HiveStepTime = 0;
 				}
 				break;
 			case 4:

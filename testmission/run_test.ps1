@@ -1,5 +1,7 @@
 # Starts the offline HiveMind test (mission AFHive, see its init.c), follows the script log
 # until the mission prints TOUR DONE, and saves a picture of the DayZ window at each SHOT.
+# Once, it brings the DayZ window to the front and presses Esc in it (the admin controls
+# test): leave the mouse and keyboard alone while it runs.
 # Pictures go to testmission\captures. Needs Steam running and these Workshop mods
 # installed: CF, Dabs Framework, DayZ-Expansion-Core, DayZ-Expansion-AI.
 #   run_test.ps1          start with whatever brain.json the test profile already holds
@@ -16,6 +18,9 @@ public static class AFWin {
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 }
 '@
 [AFWin]::SetProcessDPIAware() | Out-Null
@@ -73,6 +78,18 @@ while ((Get-Date) -lt $deadline -and -not $done) {
                 Start-Sleep -Milliseconds 800
                 if (Save-Window $name) { "captured $name" } else { "could not capture $name" }
             }
+        }
+        # The mission asks for a real Esc press to test closing the admin controls. It is sent
+        # only while the DayZ window is in front, so it can never land in another program.
+        if ($text -match '\[AFHive\] PRESS ESC' -and -not $seen.ContainsKey('#esc')) {
+            $seen['#esc'] = $true
+            $game.Refresh(); $h = $game.MainWindowHandle
+            if ($h -ne 0 -and [AFWin]::GetForegroundWindow() -ne $h) { [AFWin]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 400 }
+            if ($h -ne 0 -and [AFWin]::GetForegroundWindow() -eq $h) {
+                [AFWin]::keybd_event(0x1B, 0x01, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 80
+                [AFWin]::keybd_event(0x1B, 0x01, 2, [UIntPtr]::Zero)
+                'pressed Esc in the game window'
+            } else { 'could not press Esc: the DayZ window would not come to the front' }
         }
         if ($text -match 'TOUR DONE') { $done = $true }
         if ($text -match 'ompile error|Can.t compile') { break }

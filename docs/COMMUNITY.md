@@ -79,6 +79,12 @@ So the bots in a popular farming spot start fighting back. This only affects ord
 There is **no personal adjustment**: the bots near you are not made harder because you are good, or easier because you are struggling. The difficulty follows the community, not one player.
 
 
+### You'll be told when it changes
+
+When the bots change, a notification pops up for everyone. It shows the **threat level from 1 to 10** (5 is the bots as the admins set them up), whether it's the **whole map** or **one area** (named after the nearest town), and **what changed**: accuracy, damage, how far bots see and hear you, and for a farmed area how much bigger patrols get. Red with a skull means tougher, green with a shield means they eased off.
+
+Only real changes are announced, a whole level at a time, so it won't spam you.
+
 ### Bots answer how you fight
 
 HiveMind sorts every kill on a bot by range: beyond 150 m counts as sniping, within 40 m as rushing. When the community clearly leans one way, bots change their approach:
