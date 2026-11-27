@@ -7,8 +7,10 @@
 class AFHM_Const
 {
 	// Keep equal to version in config.cpp (tools\release.ps1 checks). Shown at the top of the report.
-	static const string VERSION = "0.5.0";
+	static const string VERSION = "0.5.1";
 	static const string DIR = "$profile:AFHiveMind";
+	// F10 clicks are announced this long after the last click, for where they ended.
+	static const int ADMIN_ANNOUNCE_DELAY_MS = 20000;
 	static const string CONFIG_PATH = "$profile:AFHiveMind/config.json";
 	static const string BRAIN_PATH = "$profile:AFHiveMind/brain.json";
 	static const string REPORT_PATH = "$profile:AFHiveMind/report.txt";
@@ -146,6 +148,45 @@ class AFHM_Config
 	bool NotifyPlayers = true;
 	int NotifyAreasMax = 2;
 	float NotifySeconds = 12;
+	// Area announcements go only to players within this many metres of the area (admins always
+	// get them). 0 sends them to everyone.
+	float NotifyAreaRadius = 2000;
+
+	// Discord: paste a channel's webhook URL (Server Settings > Integrations > Webhooks) to post
+	// threat level changes and admin actions there. Empty = off. Keep the URL private.
+	string DiscordWebhookUrl = "";
+	string DiscordName = "AF HiveMind";
+	bool DiscordMapChanges = true;
+	bool DiscordAreaChanges = true;
+	bool DiscordAdminActions = true;
+
+	// The wording of the announcements. Placeholders, filled in when one is sent:
+	//   {level}   the new threat level (1-10)        {was}     the level players were last told
+	//   {map}     the whole map's level               {place}   the nearest town, {PLACE} in capitals
+	//   {changes} the bots' multipliers, e.g. "Accuracy x1.08, damage x1.05." (or NotifyAsConfigured)
+	//   {patrols} NotifyPatrols when hot-zone patrols are bigger there, else nothing
+	//   {bigger}  how much bigger those patrols get, e.g. 1.4   {extra} the most extra bots
+	// An empty text turns that kind of announcement off. Expansion strips "%" from notifications.
+	string NotifyTitleMap = "AI THREAT LEVEL {level}/10";
+	string NotifyTitleArea = "AI THREAT LEVEL {level}/10: {PLACE}";
+	string NotifyMapTougher = "Bots map-wide got tougher (was {was}/10). {changes}";
+	string NotifyMapEasier = "Bots map-wide got easier (was {was}/10). {changes}";
+	string NotifyAreaTougher = "Players keep winning here: bots are tougher than the rest of the map (map {map}/10). {patrols}";
+	string NotifyAreaEasier = "Bots keep winning here: they ease off compared to the rest of the map (map {map}/10).";
+	string NotifyAreaBack = "Bots here are back to the map's level (map {map}/10).";
+	string NotifyPatrols = "Patrols up to x{bigger} bigger.";
+	string NotifyAsConfigured = "Bots are as the server set them.";
+	// The words used in {changes}.
+	string NotifyWordAccuracy = "accuracy";
+	string NotifyWordDamage = "damage";
+	string NotifyWordDamageTaken = "damage taken";
+	string NotifyWordSight = "sight";
+	string NotifyWordHearing = "hearing";
+	// Expansion icon names, and colours as "red green blue" (0-255).
+	string NotifyIconTougher = "Skull 1";
+	string NotifyIconEasier = "Shield";
+	string NotifyColorTougher = "220 60 60";
+	string NotifyColorEasier = "80 200 120";
 };
 
 class AFHM_ZoneStats
@@ -209,6 +250,8 @@ class AFHM_Brain
 	// update does not open with a burst of notifications.
 	float AnnouncedDifficulty = -1;
 	ref map<string, float> AnnouncedAreas = new map<string, float>;
+	// How AnnouncedAreas is measured; another figure means: record again, announce nothing.
+	int AnnounceFormat = 0;
 
 	// A hand-edited or older file may miss parts.
 	void Validate()
@@ -252,6 +295,23 @@ class AFHM_Util
 	{
 		int p = Math.Round(v * 100);
 		return p.ToString() + "%";
+	}
+
+	// Text that came from a player (a name, a command) made safe to log, to write into the
+	// JSON files and to send in a "tag|text|text" report line: no separators, quotes or control
+	// characters, and no longer than maxLen.
+	static string Clean(string text, int maxLen)
+	{
+		string t = text;
+		t.Replace("|", "/");
+		t.Replace("\\", "/");
+		t.Replace("\"", "'");
+		t.Replace("\r", " ");
+		t.Replace("\n", " ");
+		t.Replace("\t", " ");
+		if (t.Length() > maxLen)
+			t = t.Substring(0, maxLen);
+		return t;
 	}
 
 	static string Now()

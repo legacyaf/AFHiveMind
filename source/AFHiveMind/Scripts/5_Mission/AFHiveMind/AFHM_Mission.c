@@ -136,6 +136,24 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	protected float m_Age;
 	protected bool m_EscWasDown;
 	protected int m_Stamp = -1;
+	// Moving the window: drag its top strip. Where it was left is kept for the next time it opens.
+	protected static const float DRAG_STRIP = 56;
+	protected static bool s_HasPos;
+	protected static float s_PosX;
+	protected static float s_PosY;
+	protected float m_Width;
+	protected bool m_Dragging;
+	protected bool m_MouseWasDown;
+	protected float m_GrabX;
+	protected float m_GrabY;
+	// The hot-zone list in the side panel.
+	protected static const float ZONE_ROW = 42;
+	protected Widget m_ZoneHolder;
+	protected float m_ZonesX;
+	protected float m_ZonesY;
+	protected float m_ZonesW;
+	protected int m_ZoneRowsMax;
+	protected string m_ZonesSig;
 
 	override int GetID()
 	{
@@ -150,7 +168,15 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		float width = MARGIN + REPORT_W + MARGIN + SIDE_W + MARGIN;
 		m_Height = Math.Min(screenH - 60, 860);
 
-		layoutRoot = AFHM_Ui.Frame(null, Math.Max((screenW - width) / 2, 0), Math.Max((screenH - m_Height) / 2, 0), width, m_Height);
+		m_Width = width;
+		float startX = Math.Max((screenW - width) / 2, 0);
+		float startY = Math.Max((screenH - m_Height) / 2, 0);
+		if (s_HasPos)
+		{
+			startX = Math.Clamp(s_PosX, 0, Math.Max(screenW - width, 0));
+			startY = Math.Clamp(s_PosY, 0, Math.Max(screenH - m_Height, 0));
+		}
+		layoutRoot = AFHM_Ui.Frame(null, startX, startY, width, m_Height);
 		if (!layoutRoot)
 		{
 			Print("[AFHiveMind] admin controls: could not create the window");
@@ -163,6 +189,8 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		m_ReportHolder = AFHM_Ui.Frame(layoutRoot, MARGIN, 0, REPORT_W, m_Height);
 		float sx = MARGIN + REPORT_W + MARGIN;
 		new AFHM_Bubble(layoutRoot, sx, MARGIN, SIDE_W, m_Height - 2 * MARGIN, 20, AFHM_Ui.Rgba(44, 44, 46, 0.62));
+		// A grip at the top centre shows the window can be dragged.
+		new AFHM_Bubble(layoutRoot, (width - 44) / 2, 6, 44, 5, 2, AFHM_Ui.Rgba(255, 255, 255, 0.35));
 
 		int label = ARGB(255, 142, 142, 147);
 		float bx = sx + 14;
@@ -185,20 +213,32 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		AddButton("pin", "Pin the current level", bx, y, bw, "blue");
 		y += 42;
 		float half = (bw - 8) / 2;
-		AddButton("pin_down", "Easier  -0.05", bx, y, half, "grey");
-		AddButton("pin_up", "Harder  +0.05", bx + half + 8, y, half, "grey");
+		AddButton("pin_down", "Easier  -1", bx, y, half, "grey");
+		AddButton("pin_up", "Harder  +1", bx + half + 8, y, half, "grey");
 		y += 42;
 		AddButton("unpin", "Unpin (learn again)", bx, y, bw, "grey");
 		y += 54;
 
-		AFHM_Ui.Text(layoutRoot, "DANGER ZONE", bx + 6, y, bw, 18, 12, label);
+		AFHM_Ui.Text(layoutRoot, "SERVER", bx + 6, y, bw, 18, 12, label);
 		y += 22;
-		AddButton("reset", "Reset brain", bx, y, bw, "red");
-		y += 50;
+		AddButton("reload", "Reload config.json", bx, y, bw, "grey");
+		y += 54;
 
-		m_Note = AFHM_Ui.Text(layoutRoot, "", bx, y, bw, 40, 13, ARGB(255, 174, 174, 178), 1);
+		// From the bottom up: Close, the danger zone, the note line. The hot zones fill the rest.
+		float closeY = m_Height - MARGIN - 14 - 34;
+		AddButton("close", "Close   (Esc)", bx, closeY, bw, "grey");
+		float resetY = closeY - 50;
+		AddButton("reset", "Reset brain", bx, resetY, bw, "red");
+		AFHM_Ui.Text(layoutRoot, "DANGER ZONE", bx + 6, resetY - 22, bw, 18, 12, label);
+		float noteY = resetY - 22 - 44;
+		m_Note = AFHM_Ui.Text(layoutRoot, "", bx, noteY, bw, 40, 13, ARGB(255, 174, 174, 178), 1);
 
-		AddButton("close", "Close   (Esc)", bx, m_Height - MARGIN - 14 - 34, bw, "grey");
+		AFHM_Ui.Text(layoutRoot, "HOT ZONES", bx + 6, y, bw, 18, 12, label);
+		y += 22;
+		m_ZonesX = bx;
+		m_ZonesY = y;
+		m_ZonesW = bw;
+		m_ZoneRowsMax = Math.Max(Math.Floor((noteY - 6 - y) / ZONE_ROW), 0);
 
 		// Show the last report at once, if there is one, while a fresh one is asked for.
 		m_View = new AFHM_ReportView();
@@ -247,6 +287,66 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	{
 		if (m_View && m_ReportHolder)
 			m_View.Layout(m_ReportHolder, items, REPORT_W, m_Height, true);
+		ShowZones(items);
+	}
+
+	// The areas above or below the map ("Z|key|place|level|gap|map" items), one row each with a
+	// button that resets that area. Rebuilt whenever a new report arrives.
+	protected void ShowZones(array<string> items)
+	{
+		// Only rebuilt when the list changed, so a row's hover does not flicker every refresh.
+		string sig = "";
+		foreach (string sigItem: items)
+		{
+			if (sigItem.IndexOf("Z|") == 0)
+				sig += sigItem + ";";
+		}
+		if (m_ZoneHolder && sig == m_ZonesSig)
+			return;
+		m_ZonesSig = sig;
+
+		array<string> oldKeys = m_Buttons.GetKeyArray();
+		foreach (string oldKey: oldKeys)
+		{
+			if (oldKey.IndexOf("zreset:") == 0)
+				m_Buttons.Remove(oldKey);
+		}
+		if (m_ZoneHolder)
+			m_ZoneHolder.Unlink();
+		m_ZoneHolder = null;
+		if (!layoutRoot || m_ZoneRowsMax <= 0)
+			return;
+		m_ZoneHolder = AFHM_Ui.Frame(layoutRoot, m_ZonesX, m_ZonesY, m_ZonesW, m_ZoneRowsMax * ZONE_ROW);
+
+		int white = ARGB(255, 255, 255, 255);
+		int rows = 0;
+		foreach (string item: items)
+		{
+			if (item.IndexOf("Z|") != 0 || rows >= m_ZoneRowsMax)
+				continue;
+			array<string> zp = new array<string>;
+			item.Split("|", zp);
+			if (zp.Count() < 5)
+				continue;
+			string zoneKey = zp[1];
+			string place = zp[2];
+			int gap = zp[4].ToInt();
+			string sign = "+";
+			if (gap < 0)
+				sign = "";
+			float ry = rows * ZONE_ROW;
+			int tone = AFHM_Ui.Rgba(255, 69, 58, 0.55);
+			if (gap < 0)
+				tone = AFHM_Ui.Rgba(48, 209, 88, 0.55);
+			new AFHM_Bubble(m_ZoneHolder, 0, ry, m_ZonesW, ZONE_ROW - 6, 12, tone);
+			AFHM_Ui.Text(m_ZoneHolder, place, 12, ry + 2, m_ZonesW - 90, 18, 14, white);
+			AFHM_Ui.Text(m_ZoneHolder, zp[3] + "/10  (" + sign + gap.ToString() + " vs map)", 12, ry + 18, m_ZonesW - 90, 14, 11, AFHM_Ui.Rgba(255, 255, 255, 0.8));
+			string cmd = "zreset:" + zoneKey;
+			m_Buttons.Insert(cmd, new AFHM_Button(m_ZoneHolder, PREFIX + cmd, "Reset", m_ZonesW - 72, ry + 4, 64, ZONE_ROW - 14, 72, 72, 74, 0.9, m_Handler));
+			rows++;
+		}
+		if (rows == 0)
+			AFHM_Ui.Text(m_ZoneHolder, "No area is above or below the map.", 6, 4, m_ZonesW - 12, 18, 13, ARGB(255, 174, 174, 178));
 	}
 
 	protected void Note(string text)
@@ -327,14 +427,58 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		if (cmd == "pin")
 			return "Difficulty pinned.";
 		if (cmd == "pin_down")
-			return "Pinned 0.05 easier.";
+			return "One level easier. Players hear in 20 s.";
 		if (cmd == "pin_up")
-			return "Pinned 0.05 harder.";
+			return "One level harder. Players hear in 20 s.";
 		if (cmd == "unpin")
 			return "Unpinned: it learns again.";
+		if (cmd == "reload")
+			return "config.json reloaded.";
+		if (cmd.IndexOf("zreset:") == 0)
+			return "Area reset. Players near it hear in 20 s.";
 		if (cmd == "reset")
 			return "Brain reset.";
 		return "Sent.";
+	}
+
+	// Press on the top strip and move the mouse to move the window; it stays on screen.
+	protected void Drag()
+	{
+		if (!layoutRoot)
+			return;
+		int mx;
+		int my;
+		GetMousePos(mx, my);
+		bool down = (GetMouseState(MouseState.LEFT) & MB_PRESSED_MASK) != 0;
+		float wx;
+		float wy;
+		layoutRoot.GetPos(wx, wy);
+
+		if (down && !m_MouseWasDown)
+		{
+			bool inside = mx >= wx && mx <= wx + m_Width && my >= wy && my <= wy + DRAG_STRIP;
+			if (inside)
+			{
+				m_Dragging = true;
+				m_GrabX = mx - wx;
+				m_GrabY = my - wy;
+			}
+		}
+		if (!down)
+			m_Dragging = false;
+		m_MouseWasDown = down;
+
+		if (!m_Dragging)
+			return;
+		int screenW;
+		int screenH;
+		GetScreenSize(screenW, screenH);
+		float nx = Math.Clamp(mx - m_GrabX, 0, Math.Max(screenW - m_Width, 0));
+		float ny = Math.Clamp(my - m_GrabY, 0, Math.Max(screenH - m_Height, 0));
+		layoutRoot.SetPos(nx, ny);
+		s_HasPos = true;
+		s_PosX = nx;
+		s_PosY = ny;
 	}
 
 	bool AFHM_Highlight(Widget w, bool on)
@@ -372,6 +516,8 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 				Close();
 			return;
 		}
+
+		Drag();
 
 		foreach (string cmd, AFHM_Button button: m_Buttons)
 			button.Update(timeslice);
@@ -430,6 +576,15 @@ modded class MissionGameplay
 	bool AFHM_ControlsOpen()
 	{
 		return m_AFHM_Controls && GetGame().GetUIManager().GetMenu() == m_AFHM_Controls;
+	}
+
+	// Top-left corner of the admin controls window, in screen pixels. False when it is closed.
+	bool AFHM_ControlsPos(out float x, out float y)
+	{
+		if (!AFHM_ControlsOpen() || !m_AFHM_Controls.GetLayoutRoot())
+			return false;
+		m_AFHM_Controls.GetLayoutRoot().GetPos(x, y);
+		return true;
 	}
 
 	void AFHM_ShowPanel(bool show)

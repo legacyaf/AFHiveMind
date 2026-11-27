@@ -39,6 +39,10 @@ class CustomMission: MissionGameplay
 	protected float m_HiveStepTime;
 	protected int m_HiveVolleys;
 	protected float m_AnnouncedBefore;
+	protected int m_LevelBefore;
+	protected float m_DragX;
+	protected string m_ZoneReset;
+	protected float m_DragY;
 	protected eAIDynamicPatrol m_Alpha;
 	protected eAIDynamicPatrol m_Bravo;
 
@@ -385,6 +389,25 @@ class CustomMission: MissionGameplay
 				if (m_HiveStepTime >= 4)
 				{
 					Print("[AFHive] SHOT admin_controls");
+					// Ask the runner to drag the window by its top strip, 200 px left and 120 down.
+					if (AFHM_ControlsPos(m_DragX, m_DragY))
+						Print("[AFHive] PRESS DRAG " + Math.Round(m_DragX + 300).ToString() + " " + Math.Round(m_DragY + 20).ToString() + " -200 120");
+					m_HiveStep = 205;
+					m_HiveStepTime = 0;
+				}
+				break;
+			case 205:
+				if (m_HiveStepTime >= 5)
+				{
+					float dragX;
+					float dragY;
+					AFHM_ControlsPos(dragX, dragY);
+					Print("[AFHive] window moved from " + m_DragX.ToString() + "," + m_DragY.ToString() + " to " + dragX.ToString() + "," + dragY.ToString());
+					if (Math.AbsFloat(dragX - m_DragX) > 50 && Math.AbsFloat(dragY - m_DragY) > 30)
+						Print("[AFHive] drag moved the admin controls window");
+					else
+						Print("[AFHive] drag NOT confirmed (the window did not move; check the picture)");
+					Print("[AFHive] SHOT admin_dragged");
 					m_HiveStep = 202;
 					m_HiveStepTime = 0;
 				}
@@ -409,6 +432,104 @@ class CustomMission: MissionGameplay
 						Print("[AFHive] Esc closed the admin controls, and no other menu opened");
 					if (after)
 						after.Close();
+					// Easier/Harder move the threat level by exactly one per click, and clicks in a
+					// row are announced once, for where they ended.
+					AFHiveMind hmPin = AFHiveMind.Get();
+					// Reload config.json: a value changed only in memory goes back to the file's.
+					hmPin.m_Config.NotifySeconds = 99;
+					hmPin.AdminCommand(null, "reload");
+					Print("[AFHive] reload config: NotifySeconds " + hmPin.m_Config.NotifySeconds.ToString());
+					if (hmPin.m_Config.NotifySeconds == 99)
+						Print("[AFHive] FAILED: Reload config.json did not re-read the file");
+					// The wording comes from config.json: a test text must be the one sent.
+					hmPin.m_Config.NotifyMapEasier = "TEST easier: {was} to {level}. {changes}";
+					// Discord: the runner listens on this local address and reports what arrives.
+					hmPin.m_Config.DiscordWebhookUrl = "http://127.0.0.1:8765/webhook";
+					// run_test.ps1 -Webhook: post to a real Discord channel instead.
+					string realHook = AFHM_Const.DIR + "/test_webhook.txt";
+					if (FileExist(realHook))
+					{
+						FileHandle hookFh = OpenFile(realHook, FileMode.READ);
+						string hookUrl;
+						if (hookFh)
+						{
+							FGets(hookFh, hookUrl);
+							CloseFile(hookFh);
+						}
+						hookUrl = hookUrl.Trim();
+						if (hookUrl != "")
+						{
+							hmPin.m_Config.DiscordWebhookUrl = hookUrl;
+							Print("[AFHive] discord: posting to the real webhook from the runner");
+						}
+					}
+					AFHM_Discord.s_Posted = 0;
+					AFHM_Discord.s_Delivered = 0;
+					// Reset one area from the hot-zone list: it must be forgotten.
+					m_ZoneReset = "";
+					array<string> zoneKeys = hmPin.m_Brain.Zones.GetKeyArray();
+					foreach (string zoneKey: zoneKeys)
+					{
+						if (m_ZoneReset == "" && AFHM_Announcer.AreaGap(hmPin, zoneKey) != 0)
+							m_ZoneReset = zoneKey;
+					}
+					if (m_ZoneReset == "")
+					{
+						Print("[AFHive] no area above or below the map to reset (run with -Fresh)");
+					}
+					else
+					{
+						hmPin.AdminCommand(null, "zreset:" + m_ZoneReset);
+						bool stillThere = hmPin.m_Brain.Zones.Contains(m_ZoneReset);
+						Print("[AFHive] area reset: zone " + m_ZoneReset + " still remembered: " + stillThere.ToString());
+						if (stillThere)
+							Print("[AFHive] FAILED: the area reset did not forget the zone");
+					}
+					m_LevelBefore = AFHM_Announcer.Level(hmPin.m_Brain.Difficulty);
+					int toldBefore = AFHM_Announcer.Level(hmPin.m_Brain.AnnouncedDifficulty);
+					hmPin.AdminCommand(null, "pin_up");
+					int afterUp = AFHM_Announcer.Level(hmPin.m_Brain.Difficulty);
+					hmPin.AdminCommand(null, "pin_down");
+					hmPin.AdminCommand(null, "pin_down");
+					int afterDowns = AFHM_Announcer.Level(hmPin.m_Brain.Difficulty);
+					Print("[AFHive] admin clicks: level " + m_LevelBefore.ToString() + ", Harder -> " + afterUp.ToString() + ", Easier twice -> " + afterDowns.ToString() + " (difficulty " + hmPin.m_Brain.Difficulty.ToString() + ")");
+					if (afterUp != Math.Min(m_LevelBefore + 1, 10) || afterDowns != Math.Max(m_LevelBefore - 1, 1))
+						Print("[AFHive] FAILED: Easier/Harder did not move the level by exactly one");
+					if (AFHM_Announcer.Level(hmPin.m_Brain.AnnouncedDifficulty) != toldBefore)
+						Print("[AFHive] FAILED: admin clicks were announced at once instead of after the wait");
+					m_HiveStep = 204;
+					m_HiveStepTime = 0;
+				}
+				break;
+			case 204:
+				if (m_HiveStepTime >= 23)
+				{
+					AFHiveMind hmTold = AFHiveMind.Get();
+					int toldNow = AFHM_Announcer.Level(hmTold.m_Brain.AnnouncedDifficulty);
+					Print("[AFHive] after the wait, players were told level " + toldNow.ToString() + ": " + AFHM_Announcer.s_LastSent);
+					string sentAll = "";
+					foreach (string sentOne: AFHM_Announcer.s_Sent)
+						sentAll += sentOne + " || ";
+					if (sentAll.IndexOf("TEST easier: ") < 0)
+						Print("[AFHive] FAILED: the announcement did not use the text from config.json");
+					if (m_ZoneReset != "")
+					{
+						Print("[AFHive] area announcement after the reset went to " + AFHM_Announcer.s_LastRecipients.ToString() + " player(s) near it: " + AFHM_Announcer.s_LastSent);
+						if (sentAll.IndexOf("back to the map's level") < 0)
+							Print("[AFHive] FAILED: the reset area was not announced as back to the map's level");
+						if (AFHM_Announcer.s_LastRecipients != 1)
+							Print("[AFHive] FAILED: the area announcement did not reach the one player near it");
+					}
+					Print("[AFHive] discord: posted " + AFHM_Discord.s_Posted.ToString() + ", delivered " + AFHM_Discord.s_Delivered.ToString());
+					if (AFHM_Discord.s_Posted < 3 || AFHM_Discord.s_Delivered < 1)
+						Print("[AFHive] FAILED: the Discord webhook posts did not go out");
+					AFHM_Config plain = new AFHM_Config();
+					hmTold.m_Config.NotifyMapEasier = plain.NotifyMapEasier;
+					hmTold.m_Config.DiscordWebhookUrl = "";
+					if (toldNow != AFHM_Announcer.Level(hmTold.m_Brain.Difficulty))
+						Print("[AFHive] FAILED: the admin clicks were not announced after the wait");
+					Print("[AFHive] SHOT admin_notification");
+					hmTold.AdminCommand(null, "unpin");
 					m_HiveStep = 4;
 					m_HiveStepTime = 0;
 				}

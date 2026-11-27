@@ -1,13 +1,15 @@
 # Starts the offline HiveMind test (mission AFHive, see its init.c), follows the script log
 # until the mission prints TOUR DONE, and saves a picture of the DayZ window at each SHOT.
 # Once, it brings the DayZ window to the front and presses Esc in it (the admin controls
-# test): leave the mouse and keyboard alone while it runs.
+# test), and drags that window with the mouse: leave the mouse and keyboard alone while it runs.
 # Pictures go to testmission\captures. Needs Steam running and these Workshop mods
 # installed: CF, Dabs Framework, DayZ-Expansion-Core, DayZ-Expansion-AI.
 #   run_test.ps1          start with whatever brain.json the test profile already holds
 #   run_test.ps1 -Fresh   delete the test profile's AFHiveMind folder first (empty brain)
 # Ends with TEST PASSED (exit code 0) or TEST FAILED (exit code 1).
-param([switch]$Fresh)
+#   run_test.ps1 -Webhook <url>   also post to a real Discord webhook (the URL is put only in the
+#                                 git-ignored test profile, and removed when the test ends)
+param([switch]$Fresh, [string]$Webhook = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -21,6 +23,10 @@ public static class AFWin {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref POINT p);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
 }
 '@
 [AFWin]::SetProcessDPIAware() | Out-Null
@@ -40,6 +46,42 @@ if ($Fresh) { Remove-Item (Join-Path $profiles 'AFHiveMind') -Recurse -Force -Co
 
 # DayZ on this PC is shared with other work: never close a game this script did not start.
 if (Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue) { throw 'DayZDiag is already running (someone else may be using it). Not starting the test.' }
+$webhookFile = Join-Path $profiles 'AFHiveMind\test_webhook.txt'
+Remove-Item $webhookFile -ErrorAction SilentlyContinue
+if ($Webhook) {
+    New-Item -ItemType Directory -Force (Split-Path $webhookFile) | Out-Null
+    [IO.File]::WriteAllText($webhookFile, $Webhook.Trim())
+}
+# A stand-in for Discord: the mission points the webhook at 127.0.0.1:8765, and every post that
+# arrives is saved to captures\webhook.txt (only this machine can reach it).
+$hookFile = Join-Path $out 'webhook.txt'
+Remove-Item $hookFile -ErrorAction SilentlyContinue
+$hook = Start-Job -ArgumentList $hookFile -ScriptBlock {
+    param($file)
+    $l = New-Object System.Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 8765)
+    $l.Start()
+    $until = (Get-Date).AddSeconds(480)
+    while ((Get-Date) -lt $until) {
+        if (-not $l.Pending()) { Start-Sleep -Milliseconds 100; continue }
+        $c = $l.AcceptTcpClient(); $c.ReceiveTimeout = 3000
+        $s = $c.GetStream(); $buf = New-Object byte[] 65536; $got = 0; $text = ''
+        try {
+            do {
+                $n = $s.Read($buf, $got, $buf.Length - $got); $got += $n
+                $text = [Text.Encoding]::UTF8.GetString($buf, 0, $got)
+                $head = $text.IndexOf("`r`n`r`n")
+                $len = 0; if ($text -match '(?i)content-length:\s*(\d+)') { $len = [int]$Matches[1] }
+            } while ($n -gt 0 -and ($head -lt 0 -or $got - $head - 4 -lt $len))
+        } catch {}
+        $resp = [Text.Encoding]::ASCII.GetBytes("HTTP/1.1 200 OK`r`nContent-Type: application/json`r`nContent-Length: 2`r`nConnection: close`r`n`r`n{}")
+        try { $s.Write($resp, 0, $resp.Length) } catch {}
+        $c.Close()
+        $body = $text; $head = $text.IndexOf("`r`n`r`n"); if ($head -ge 0) { $body = $text.Substring($head + 4) }
+        $first = ($text -split "`r`n")[0]
+        Add-Content -LiteralPath $file -Value "$first | $body" -Encoding UTF8
+    }
+    $l.Stop()
+}
 $start = Get-Date
 $game = Start-Process -PassThru (Join-Path $dayz 'DayZDiag_x64.exe') -WorkingDirectory $dayz -ArgumentList @(
     """-mission=$here\AFHive.ChernarusPlus""", """-mod=$($mods -join ';')""", """-profiles=$profiles""",
@@ -91,6 +133,28 @@ while ((Get-Date) -lt $deadline -and -not $done) {
                 'pressed Esc in the game window'
             } else { 'could not press Esc: the DayZ window would not come to the front' }
         }
+        # The mission asks for a mouse drag of the admin controls window (client pixels, then the
+        # distance to move). Like the Esc press, only while the DayZ window is in front.
+        $drag = [regex]::Match($text, '\[AFHive\] PRESS DRAG (-?\d+) (-?\d+) (-?\d+) (-?\d+)')
+        if ($drag.Success -and -not $seen.ContainsKey('#drag')) {
+            $seen['#drag'] = $true
+            $game.Refresh(); $h = $game.MainWindowHandle
+            if ($h -ne 0 -and [AFWin]::GetForegroundWindow() -ne $h) { [AFWin]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 400 }
+            if ($h -ne 0 -and [AFWin]::GetForegroundWindow() -eq $h) {
+                $pt = New-Object AFWin+POINT; $pt.X = [int]$drag.Groups[1].Value; $pt.Y = [int]$drag.Groups[2].Value
+                [AFWin]::ClientToScreen($h, [ref]$pt) | Out-Null
+                $dx = [int]$drag.Groups[3].Value; $dy = [int]$drag.Groups[4].Value
+                [AFWin]::SetCursorPos($pt.X, $pt.Y) | Out-Null; Start-Sleep -Milliseconds 200
+                [AFWin]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 150
+                for ($s = 1; $s -le 12; $s++) {
+                    [AFWin]::SetCursorPos($pt.X + [int]($dx * $s / 12), $pt.Y + [int]($dy * $s / 12)) | Out-Null
+                    Start-Sleep -Milliseconds 40
+                }
+                Start-Sleep -Milliseconds 150
+                [AFWin]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+                'dragged the admin controls in the game window'
+            } else { 'could not drag: the DayZ window would not come to the front' }
+        }
         if ($text -match 'TOUR DONE') { $done = $true }
         if ($text -match 'ompile error|Can.t compile') { break }
     }
@@ -101,6 +165,9 @@ $lines = @(($text -split "`r?`n" | Select-String '\[AFHive\]|\[AFHiveMind\]|ompi
 $lines
 "test finished: $done; pictures: $($seen.Count)"
 if (-not $game.HasExited) { Stop-Process -Id $game.Id -Force -Confirm:$false }
+Stop-Job $hook -ErrorAction SilentlyContinue; Remove-Job $hook -Force -ErrorAction SilentlyContinue
+Remove-Item $webhookFile -ErrorAction SilentlyContinue
+if (Test-Path $hookFile) { Get-Content $hookFile | ForEach-Object { "webhook received: $_" } } else { 'webhook received: nothing' }
 
 # A clear verdict and exit code, so tools\release.ps1 can stop on a failure.
 $failed = @($lines | Where-Object { $_ -cmatch 'FAILED' -or $_ -match 'ompile error|Can.t compile' })

@@ -113,7 +113,7 @@ Players who are not listed see "you are not listed under Admins in config.json".
 
 ### F10: the admin controls
 
-**F10** opens the admin controls in the middle of the screen: one see-through rounded window, with the report on the left and the buttons on the right. **Esc** or **Close** shuts it.
+**F10** opens the admin controls in the middle of the screen: one see-through rounded window, with the report on the left and the buttons on the right. **Esc** or **Close** shuts it. To move it, drag its top edge (the small bar at the top centre); it opens where you left it until you restart the game.
 
 The report on both F9 and F10 is laid out like a chat:
 
@@ -132,8 +132,10 @@ The buttons are grouped:
 | | **Resume learning** | Starts learning again. |
 | | **Run a learning step now** | Runs the 10-minute learning step at once. |
 | Difficulty | **Pin the current level** | Holds the difficulty at its current value. Fights are still learned from for tactics, zones and so on, but they no longer move the difficulty. |
-| | **Easier -0.05 / Harder +0.05** | Pins the difficulty 0.05 lower or higher. Click several times for bigger steps. |
+| | **Easier -1 / Harder +1** | Pins the difficulty one threat level lower or higher (for example 5/10 to 4/10). Players are told 20 seconds after your last click, once, for where you ended up. |
 | | **Unpin (learn again)** | Lets the difficulty learn again, starting from where it was pinned. |
+| Server | **Reload config.json** | Re-reads `config.json` without a restart, so changes to the wording, Discord and tuning settings take effect. |
+| Hot zones | **Reset** (one per area) | The areas currently above or below the map, with their level, toughest first (red above, green below). **Reset** forgets that one area: its bots go back to the map's level, and players near it are told 20 seconds later. |
 | Danger zone | **Reset brain** | Takes two clicks. Forgets everything and starts again from "as configured". The old brain is kept in `AFHiveMind\backups` as `reset_brain_<date>_<time>.json`. Settings, the freeze and the pin are kept. |
 
 A short note under the buttons confirms each press.
@@ -233,10 +235,10 @@ A bot tuned above difficulty 0.6 that is killed by a player may drop one extra i
 
 When the bots change, players hear about it through Expansion's notifications. The **threat level** runs from 1 to 10 and follows the difficulty: **5 is the bots exactly as you configured them**. Only a change of a whole level is announced; small adjustments stay quiet.
 
-- **Whole map:** "AI THREAT LEVEL 6/10: Bots across the whole map got tougher (level 5 to 6). Now: accuracy x1.05 (was x1.00), damage x1.03 (was x1.00), ..." The figures are multipliers of how you configured the bots.
-- **An area:** a farmed zone that sits above or below the map's level is named after the nearest town or village: "AI THREAT LEVEL 7/10: GRISHINO: Players keep winning around Grishino, so bots there are tougher than the rest of the map (level 7, map 6). ... Patrols there come out up to x1.4 as big (at most 3 extra bots)." When it drops back, players are told it is back to the map's level.
+- **Whole map:** "AI THREAT LEVEL 6/10: Bots map-wide got tougher (was 5/10). Accuracy x1.05, damage x1.03, ..." The figures are the bots' current multipliers of how you configured them; only those that differ from x1 are listed.
+- **An area:** a farmed zone with its own adjustment of a whole level or more (0.05 difficulty rounds up to one level) is named after the nearest town or village: "AI THREAT LEVEL 8/10: GRISHINO: Players keep winning here: bots are tougher than the rest of the map (map 6/10). Patrols up to x1.4 bigger." An area is announced only when its own adjustment changes, never because the map's level moved. When the adjustment goes away, players are told it is back to the map's level.
 
-Tougher is shown in red with a skull, easier in green with a shield. At most `NotifyAreasMax` area announcements go out per learning step, biggest changes first. Pinning, resetting or running a step from F10 is announced the same way. The first start after installing or updating announces nothing; it only records the current level. Every announcement is also written to `hivemind.log` ("announced: ..."). The F9 report shows the current level on its second line.
+Tougher is shown in red with a skull, easier in green with a shield. At most `NotifyAreasMax` area announcements go out per learning step, biggest changes first. Changes made from F10 are announced 20 seconds after the last click, once, for where they ended; if you end where you started, nothing is announced. The first start after installing or updating announces nothing; it only records the current level. Every announcement is also written to `hivemind.log` ("announced: ..."). The F9 report shows the current level on its second line.
 
 Notifications use Expansion's own system, so they work with HiveMind loaded on the server only, and they follow Expansion's notification setting (`EnableNotification`).
 
@@ -354,6 +356,40 @@ Change a value, save, and it applies at the next learning step, or at once after
 | `NotifyPlayers` | true | false: only the admins listed in `Admins` get them. |
 | `NotifyAreasMax` | 2 | Area announcements per learning step at most. 0: whole map only. |
 | `NotifySeconds` | 12 | How long each notification stays on screen. |
+| `NotifyAreaRadius` | 2000 | Area announcements go to players within this many metres of the area, and to admins wherever they are. 0: everyone. Whole-map announcements always go to everyone. |
+
+### Discord
+
+Paste a channel's webhook URL into `DiscordWebhookUrl` (in Discord: channel settings > Integrations > Webhooks > New Webhook > Copy Webhook URL) and the HiveMind posts there. Then press **Reload config.json** in F10, or restart. Keep the URL private: anyone who has it can post to that channel. The mod only uses it on the server, and never sends it to players or writes it to the log.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `DiscordWebhookUrl` | empty (off) | The webhook URL. It must start with `https://`. |
+| `DiscordName` | AF HiveMind | The name the posts appear under. |
+| `DiscordMapChanges` | true | Post whole-map threat level changes. |
+| `DiscordAreaChanges` | true | Post area announcements. |
+| `DiscordAdminActions` | true | Post every F10 button press, with the admin's name and Steam id. This is an audit trail for your staff channel. |
+
+Posts never ping anyone, even if a player's name contains @everyone. If posts don't arrive, `hivemind.log` says why ("discord: ...").
+
+**The wording is yours to change.** Every announcement is built from a template in `config.json`. Edit the text, restart the server, and the next announcement uses it.
+
+| Setting | Default |
+|---|---|
+| `NotifyTitleMap` | `AI THREAT LEVEL {level}/10` |
+| `NotifyTitleArea` | `AI THREAT LEVEL {level}/10: {PLACE}` |
+| `NotifyMapTougher` | `Bots map-wide got tougher (was {was}/10). {changes}` |
+| `NotifyMapEasier` | `Bots map-wide got easier (was {was}/10). {changes}` |
+| `NotifyAreaTougher` | `Players keep winning here: bots are tougher than the rest of the map (map {map}/10). {patrols}` |
+| `NotifyAreaEasier` | `Bots keep winning here: they ease off compared to the rest of the map (map {map}/10).` |
+| `NotifyAreaBack` | `Bots here are back to the map's level (map {map}/10).` |
+| `NotifyPatrols` | `Patrols up to x{bigger} bigger.` (used for `{patrols}`) |
+| `NotifyAsConfigured` | `Bots are as the server set them.` (used for `{changes}` at level 5) |
+| `NotifyWordAccuracy`, `NotifyWordDamage`, `NotifyWordDamageTaken`, `NotifyWordSight`, `NotifyWordHearing` | The words in `{changes}`. An empty word leaves that figure out. |
+| `NotifyIconTougher`, `NotifyIconEasier` | `Skull 1`, `Shield` (Expansion icon names) |
+| `NotifyColorTougher`, `NotifyColorEasier` | `220 60 60`, `80 200 120` (red green blue, 0-255) |
+
+Placeholders: `{level}` the new level, `{was}` the level before (for an area, the map's), `{map}` the map's level, `{place}` the nearest town (`{PLACE}` in capitals), `{changes}` the bots' multipliers ("Accuracy x1.08, damage x1.05."), `{patrols}` the `NotifyPatrols` text when patrols there are bigger, `{bigger}` how much bigger, `{extra}` the most extra bots. An empty text turns that kind of announcement off, for example `"NotifyAreaEasier": ""`. Texts are cut at 250 characters and titles at 80, and Expansion removes `%` signs.
 
 ## 10. Common recipes
 

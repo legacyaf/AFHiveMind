@@ -5,6 +5,10 @@ class AFHiveMind
 {
 	protected static ref AFHiveMind s_Instance;
 	protected static const int PANEL_COLUMNS = 74;
+	// Panel RPCs a client may send: one request per 0.5 s, one admin command per 0.3 s.
+	protected static const float RPC_REQUEST_GAP = 0.5;
+	protected static const float RPC_COMMAND_GAP = 0.3;
+	protected static const float RPC_REFUSAL_LOG_GAP = 30;
 
 	ref AFHM_Config m_Config;
 	ref AFHM_Brain m_Brain;
@@ -17,6 +21,13 @@ class AFHiveMind
 	protected ref map<string, float> m_NewByPlayer = new map<string, float>;
 	protected bool m_Dirty;
 	protected ref array<string> m_Recent = new array<string>;
+	// When each player last sent a panel request / admin command / had a refusal logged.
+	protected ref map<string, float> m_RpcLastRequest = new map<string, float>;
+	protected ref map<string, float> m_RpcLastCommand = new map<string, float>;
+	protected ref map<string, float> m_RpcLastRefusal = new map<string, float>;
+	// Reused for the player list, so a bot spawn does not allocate a new array.
+	protected ref array<Man> m_ScratchPlayers = new array<Man>;
+	protected bool m_ConfigLoaded;
 
 	static AFHiveMind Get()
 	{
@@ -91,10 +102,12 @@ class AFHiveMind
 			cfg.ConfigVersion = 2;
 		}
 		m_Config = cfg;
-		// Write it back: a config.json from an older version gains the new settings, with
-		// their defaults, while every value the admin set is kept.
-		if (FileExist(AFHM_Const.CONFIG_PATH) && !err)
+		// Write it back once at start-up: a config.json from an older version gains the new
+		// settings, with their defaults, while every value the admin set is kept. The re-reads at
+		// each evolve step do not rewrite the file again.
+		if (!m_ConfigLoaded && FileExist(AFHM_Const.CONFIG_PATH) && !err)
 			JsonFileLoader<AFHM_Config>.SaveFile(AFHM_Const.CONFIG_PATH, cfg, err);
+		m_ConfigLoaded = true;
 	}
 
 	void SaveConfig()
@@ -182,6 +195,9 @@ class AFHiveMind
 		{
 			m_LastPresence = now;
 			SamplePresence();
+			PruneRpcStamps(m_RpcLastRequest, now);
+			PruneRpcStamps(m_RpcLastCommand, now);
+			PruneRpcStamps(m_RpcLastRefusal, now);
 		}
 
 		if (now - m_LastEvolve >= m_Config.EvolveIntervalSeconds)
@@ -194,9 +210,9 @@ class AFHiveMind
 	{
 		if (m_Config.Frozen)
 			return;
-		array<Man> players = new array<Man>;
-		GetGame().GetPlayers(players);
-		foreach (Man man: players)
+		m_ScratchPlayers.Clear();
+		GetGame().GetPlayers(m_ScratchPlayers);
+		foreach (Man man: m_ScratchPlayers)
 		{
 			PlayerBase pb = PlayerBase.Cast(man);
 			if (!pb || pb.IsAI() || !pb.IsAlive())
@@ -447,6 +463,16 @@ class AFHiveMind
 		return cx.ToString() + " / " + cz.ToString();
 	}
 
+	// The same label for a position, without building the key and splitting it again.
+	string ZoneLabelAt(vector pos)
+	{
+		int gx = Math.Floor(pos[0] / m_Config.ZoneSize);
+		int gz = Math.Floor(pos[2] / m_Config.ZoneSize);
+		int cx = (gx + 0.5) * m_Config.ZoneSize;
+		int cz = (gz + 0.5) * m_Config.ZoneSize;
+		return cx.ToString() + " / " + cz.ToString();
+	}
+
 	// The middle of a zone, from its key.
 	vector ZoneCentre(string key)
 	{
@@ -482,7 +508,9 @@ class AFHiveMind
 			ps = new AFHM_PlayerStats();
 			m_Brain.Players.Insert(id, ps);
 		}
-		ps.Name = name;
+		// A player picks their own name: keep it clean for the JSON file, the report lines and the log.
+		if (ps.Name != name)
+			ps.Name = AFHM_Util.Clean(name, 32);
 		return ps;
 	}
 
@@ -550,7 +578,7 @@ class AFHiveMind
 		m_Dirty = true;
 
 		if (m_Config.DebugLevel >= 1)
-			AFHM_Util.Log("seen: " + ps.Name + " killed a bot at " + AFHM_Util.F(dist, 0) + " m with " + weapon + " in zone " + ZoneLabel(ZoneKey(bot.GetPosition())));
+			AFHM_Util.Log("seen: " + ps.Name + " killed a bot at " + AFHM_Util.F(dist, 0) + " m with " + weapon + " in zone " + ZoneLabelAt(bot.GetPosition()));
 	}
 
 	void RecordPlayerKilled(PlayerBase victim, PlayerBase bot, EntityAI source)
@@ -573,7 +601,7 @@ class AFHiveMind
 		m_Dirty = true;
 
 		if (m_Config.DebugLevel >= 1)
-			AFHM_Util.Log("seen: a bot killed " + ps.Name + " at " + AFHM_Util.F(dist, 0) + " m in zone " + ZoneLabel(ZoneKey(victim.GetPosition())));
+			AFHM_Util.Log("seen: a bot killed " + ps.Name + " at " + AFHM_Util.F(dist, 0) + " m in zone " + ZoneLabelAt(victim.GetPosition()));
 	}
 
 	// Night by the bot's own reckoning: Expansion marks each bot day or night by how much
@@ -701,11 +729,11 @@ class AFHiveMind
 
 	PlayerBase NearestPlayer(vector pos, float radius)
 	{
-		array<Man> players = new array<Man>;
-		GetGame().GetPlayers(players);
+		m_ScratchPlayers.Clear();
+		GetGame().GetPlayers(m_ScratchPlayers);
 		PlayerBase best;
 		float bestDistSq = radius * radius;
-		foreach (Man man: players)
+		foreach (Man man: m_ScratchPlayers)
 		{
 			PlayerBase pb = PlayerBase.Cast(man);
 			if (!pb || pb.IsAI() || !pb.IsAlive())
@@ -848,7 +876,7 @@ class AFHiveMind
 
 		if (!patrolName)
 			patrolName = "unnamed patrol";
-		string line = patrolName + " @ " + ZoneLabel(ZoneKey(pos)) + ": " + patrolProfile;
+		string line = patrolName + " @ " + ZoneLabelAt(pos) + ": " + patrolProfile;
 		// One line per patrol in the panel, not one per bot, even when two patrols spawn their
 		// bots at the same time and the lines arrive interleaved.
 		if (m_Recent.Find(line) == -1)
@@ -1046,14 +1074,66 @@ class AFHiveMind
 		return m_Config.Admins.Find(identity.GetPlainId()) > -1;
 	}
 
+	// ------------------------------------------------------------------ panel RPC limits
+
+	// "Name [id]" for the log; the name is the player's own, so it is cleaned.
+	string WhoIs(PlayerIdentity who)
+	{
+		if (!who)
+			return "offline admin";
+		return AFHM_Util.Clean(who.GetName(), 32) + " [" + who.GetPlainId() + "]";
+	}
+
+	// True when this much time has passed since the player's last stamp in the table (and
+	// stamps it now); false when the call came too soon and is to be ignored.
+	protected bool StampOk(map<string, float> table, PlayerIdentity who, float gap)
+	{
+		string id = "offline";
+		if (who)
+			id = who.GetPlainId();
+		float now = GetGame().GetTickTime();
+		float last;
+		if (table.Find(id, last) && now - last < gap)
+			return false;
+		table.Set(id, now);
+		return true;
+	}
+
+	// Panel requests (command false) and admin buttons (command true), per player.
+	bool RpcAllowed(PlayerIdentity who, bool command)
+	{
+		if (command)
+			return StampOk(m_RpcLastCommand, who, RPC_COMMAND_GAP);
+		return StampOk(m_RpcLastRequest, who, RPC_REQUEST_GAP);
+	}
+
+	// Refusals are logged now and then, not once per spammed message.
+	bool RefusalLogAllowed(PlayerIdentity who)
+	{
+		return StampOk(m_RpcLastRefusal, who, RPC_REFUSAL_LOG_GAP);
+	}
+
+	// Players who left would otherwise stay in the tables for ever.
+	protected void PruneRpcStamps(map<string, float> table, float now)
+	{
+		if (table.Count() < 32)
+			return;
+		array<string> old = new array<string>;
+		foreach (string id, float stamp: table)
+		{
+			if (now - stamp > 120)
+				old.Insert(id);
+		}
+		foreach (string gone: old)
+			table.Remove(gone);
+	}
+
 	// ------------------------------------------------------------------ admin controls
 
 	// A button on the in-game controls panel. The caller has checked the sender is an admin.
 	void AdminCommand(PlayerIdentity who, string cmd)
 	{
-		string name = "offline admin";
-		if (who)
-			name = who.GetName() + " [" + who.GetPlainId() + "]";
+		string name = WhoIs(who);
 		float current = m_Brain.Difficulty;
 		if (m_Config.PinnedDifficulty >= 0)
 			current = m_Config.PinnedDifficulty;
@@ -1077,11 +1157,11 @@ class AFHiveMind
 		}
 		else if (cmd == "pin_down")
 		{
-			done = "pinned difficulty at " + AFHM_Util.F(PinAt(current - 0.05));
+			done = "pinned difficulty at " + AFHM_Util.F(PinAt(LevelStep(current, -1)));
 		}
 		else if (cmd == "pin_up")
 		{
-			done = "pinned difficulty at " + AFHM_Util.F(PinAt(current + 0.05));
+			done = "pinned difficulty at " + AFHM_Util.F(PinAt(LevelStep(current, 1)));
 		}
 		else if (cmd == "unpin")
 		{
@@ -1098,16 +1178,55 @@ class AFHiveMind
 			ResetBrain();
 			done = "reset the brain (the old one is in AFHiveMind\\backups)";
 		}
+		else if (cmd == "reload")
+		{
+			LoadConfig();
+			done = "reloaded config.json";
+		}
+		else if (cmd.IndexOf("zreset:") == 0)
+		{
+			// Forget one area: its bots go back to the map's level, and players near it are told.
+			string zoneKey = cmd.Substring(7, cmd.Length() - 7);
+			if (!m_Brain.Zones.Contains(zoneKey))
+				return;
+			string zonePlace = AFHM_Announcer.PlaceName(ZoneCentre(zoneKey));
+			m_Brain.Zones.Remove(zoneKey);
+			done = "reset the area around " + zonePlace + " (zone " + ZoneLabel(zoneKey) + ")";
+		}
 		else
 		{
 			return;
 		}
 
 		AFHM_Util.Log("admin " + name + ": " + done);
+		AFHM_Discord.AdminAction(this, name, done);
 		SaveConfig();
 		RefreshInsights();
+		Save();
+		AnnounceSoon();
+	}
+
+	// Admin clicks are announced after a short wait, so several clicks in a row give one
+	// notification for where they ended (and none if they ended where they started).
+	protected void AnnounceSoon()
+	{
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AnnounceNow);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(AnnounceNow, AFHM_Const.ADMIN_ANNOUNCE_DELAY_MS, false);
+	}
+
+	void AnnounceNow()
+	{
 		AFHM_Announcer.Check(this);
 		Save();
+	}
+
+	// The middle of the threat level one above (+1) or below (-1) the given difficulty, so
+	// every Easier/Harder click moves the level by exactly one (1-10).
+	protected float LevelStep(float difficulty, int dir)
+	{
+		int level = Math.Clamp(AFHM_Announcer.Level(difficulty) + dir, 1, 10);
+		float target = level;
+		return target / 10;
 	}
 
 	protected float PinAt(float value)
@@ -1135,6 +1254,7 @@ class AFHiveMind
 		fresh.Validate();
 		// Keep what players were last told, so they hear that the bots went back to normal.
 		fresh.AnnouncedDifficulty = m_Brain.AnnouncedDifficulty;
+		fresh.AnnounceFormat = m_Brain.AnnounceFormat;
 		array<string> told = m_Brain.AnnouncedAreas.GetKeyArray();
 		foreach (string toldKey: told)
 			fresh.AnnouncedAreas.Set(toldKey, m_Brain.AnnouncedAreas.Get(toldKey));
@@ -1226,7 +1346,7 @@ class AFHiveMind
 				continue;
 			r.Insert("T|" + topic);
 			foreach (string line: said)
-				r.Insert("I|" + Shorten(line, 300));
+				r.Insert("I|" + Shorten(line, 280));
 		}
 
 		r.Insert("T|Latest patrols");
@@ -1240,15 +1360,49 @@ class AFHiveMind
 			int colon = recent.IndexOf(": ");
 			if (at < 0 || colon < at)
 			{
-				r.Insert("I|" + Shorten(recent, 300));
+				r.Insert("I|" + Shorten(recent, 280));
 				continue;
 			}
 			string patrol = recent.Substring(0, at);
 			string coords = recent.Substring(at + 3, colon - at - 3);
 			string details = recent.Substring(colon + 2, recent.Length() - colon - 2);
-			r.Insert("P|" + patrol + "|" + PlaceOfCoords(coords) + "|" + Shorten(details, 260));
+			r.Insert("P|" + Shorten(patrol, 32) + "|" + Shorten(PlaceOfCoords(coords), 40) + "|" + Shorten(details, 215));
 		}
+		PanelZones(r);
 		return r;
+	}
+
+	// "Z|key|place|level|gap" for each area above or below the map, biggest gap first, for the
+	// hot-zone list (with a reset button each) in the admin controls.
+	protected void PanelZones(array<string> r)
+	{
+		array<string> zoneKeys = m_Brain.Zones.GetKeyArray();
+		array<string> picked = new array<string>;
+		array<int> gaps = new array<int>;
+		foreach (string zk: zoneKeys)
+		{
+			int g = AFHM_Announcer.AreaGap(this, zk);
+			if (g != 0)
+			{
+				picked.Insert(zk);
+				gaps.Insert(g);
+			}
+		}
+		int mapLevel = AFHM_Announcer.Level(m_Brain.Difficulty);
+		for (int n = 0; n < 6 && picked.Count() > 0; n++)
+		{
+			int best = 0;
+			for (int j = 1; j < picked.Count(); j++)
+			{
+				if (Math.AbsInt(gaps[j]) > Math.AbsInt(gaps[best]))
+					best = j;
+			}
+			string key = picked[best];
+			int level = AFHM_Announcer.Level(Math.Clamp(m_Brain.Difficulty + AFHM_Announcer.AreaOffset(this, key), 0, 1));
+			r.Insert("Z|" + key + "|" + Shorten(AFHM_Announcer.PlaceName(ZoneCentre(key)), 24) + "|" + level.ToString() + "|" + gaps[best].ToString() + "|" + mapLevel.ToString());
+			picked.Remove(best);
+			gaps.Remove(best);
+		}
 	}
 
 	protected static string TopicOf(string insight)
