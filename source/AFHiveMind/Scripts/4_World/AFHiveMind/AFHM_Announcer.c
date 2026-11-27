@@ -13,6 +13,7 @@ class AFHM_Announcer
 	protected static ref array<ref ExpansionLocation> s_Towns;
 	// The last announcement sent, title and text (read by the test mission).
 	static string s_LastSent;
+	protected static ref map<string, string> s_PlaceCache = new map<string, string>;
 
 	// How AnnouncedAreas is measured (AFHM_Brain.AnnounceFormat). 0.5.0 stored gaps measured
 	// against the map's rounded level; from 0.5.1 an area's gap comes from its own offset only.
@@ -265,6 +266,22 @@ class AFHM_Announcer
 
 	// The nearest town or village on this map, from the map's own list of places.
 	static string PlaceName(vector pos)
+	{
+		// Asked for every panel line: remember the answer per spot (to the metre).
+		int keyX = Math.Round(pos[0]);
+		int keyZ = Math.Round(pos[2]);
+		string cacheKey = keyX.ToString() + "_" + keyZ.ToString();
+		string cached;
+		if (s_PlaceCache.Find(cacheKey, cached))
+			return cached;
+		if (s_PlaceCache.Count() > 2000)
+			s_PlaceCache.Clear();
+		string found = AFHM_Announcer.FindPlace(pos);
+		s_PlaceCache.Set(cacheKey, found);
+		return found;
+	}
+
+	protected static string FindPlace(vector pos)
 	{
 		if (!s_Towns)
 		{
