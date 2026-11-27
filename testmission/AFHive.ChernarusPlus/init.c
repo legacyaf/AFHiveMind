@@ -39,6 +39,7 @@ class CustomMission: MissionGameplay
 	protected float m_HiveStepTime;
 	protected int m_HiveVolleys;
 	protected float m_AnnouncedBefore;
+	protected int m_LevelBefore;
 	protected eAIDynamicPatrol m_Alpha;
 	protected eAIDynamicPatrol m_Bravo;
 
@@ -409,6 +410,35 @@ class CustomMission: MissionGameplay
 						Print("[AFHive] Esc closed the admin controls, and no other menu opened");
 					if (after)
 						after.Close();
+					// Easier/Harder move the threat level by exactly one per click, and clicks in a
+					// row are announced once, for where they ended.
+					AFHiveMind hmPin = AFHiveMind.Get();
+					m_LevelBefore = AFHM_Announcer.Level(hmPin.m_Brain.Difficulty);
+					int toldBefore = AFHM_Announcer.Level(hmPin.m_Brain.AnnouncedDifficulty);
+					hmPin.AdminCommand(null, "pin_up");
+					int afterUp = AFHM_Announcer.Level(hmPin.m_Brain.Difficulty);
+					hmPin.AdminCommand(null, "pin_down");
+					hmPin.AdminCommand(null, "pin_down");
+					int afterDowns = AFHM_Announcer.Level(hmPin.m_Brain.Difficulty);
+					Print("[AFHive] admin clicks: level " + m_LevelBefore.ToString() + ", Harder -> " + afterUp.ToString() + ", Easier twice -> " + afterDowns.ToString() + " (difficulty " + hmPin.m_Brain.Difficulty.ToString() + ")");
+					if (afterUp != Math.Min(m_LevelBefore + 1, 10) || afterDowns != Math.Max(m_LevelBefore - 1, 1))
+						Print("[AFHive] FAILED: Easier/Harder did not move the level by exactly one");
+					if (AFHM_Announcer.Level(hmPin.m_Brain.AnnouncedDifficulty) != toldBefore)
+						Print("[AFHive] FAILED: admin clicks were announced at once instead of after the wait");
+					m_HiveStep = 204;
+					m_HiveStepTime = 0;
+				}
+				break;
+			case 204:
+				if (m_HiveStepTime >= 23)
+				{
+					AFHiveMind hmTold = AFHiveMind.Get();
+					int toldNow = AFHM_Announcer.Level(hmTold.m_Brain.AnnouncedDifficulty);
+					Print("[AFHive] after the wait, players were told level " + toldNow.ToString());
+					if (toldNow != AFHM_Announcer.Level(hmTold.m_Brain.Difficulty))
+						Print("[AFHive] FAILED: the admin clicks were not announced after the wait");
+					Print("[AFHive] SHOT admin_notification");
+					hmTold.AdminCommand(null, "unpin");
 					m_HiveStep = 4;
 					m_HiveStepTime = 0;
 				}

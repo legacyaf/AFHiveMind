@@ -185,8 +185,8 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		AddButton("pin", "Pin the current level", bx, y, bw, "blue");
 		y += 42;
 		float half = (bw - 8) / 2;
-		AddButton("pin_down", "Easier  -0.05", bx, y, half, "grey");
-		AddButton("pin_up", "Harder  +0.05", bx + half + 8, y, half, "grey");
+		AddButton("pin_down", "Easier  -1", bx, y, half, "grey");
+		AddButton("pin_up", "Harder  +1", bx + half + 8, y, half, "grey");
 		y += 42;
 		AddButton("unpin", "Unpin (learn again)", bx, y, bw, "grey");
 		y += 54;
@@ -327,9 +327,9 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		if (cmd == "pin")
 			return "Difficulty pinned.";
 		if (cmd == "pin_down")
-			return "Pinned 0.05 easier.";
+			return "One level easier. Players hear in 20 s.";
 		if (cmd == "pin_up")
-			return "Pinned 0.05 harder.";
+			return "One level harder. Players hear in 20 s.";
 		if (cmd == "unpin")
 			return "Unpinned: it learns again.";
 		if (cmd == "reset")

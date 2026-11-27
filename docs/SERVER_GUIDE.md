@@ -132,7 +132,7 @@ The buttons are grouped:
 | | **Resume learning** | Starts learning again. |
 | | **Run a learning step now** | Runs the 10-minute learning step at once. |
 | Difficulty | **Pin the current level** | Holds the difficulty at its current value. Fights are still learned from for tactics, zones and so on, but they no longer move the difficulty. |
-| | **Easier -0.05 / Harder +0.05** | Pins the difficulty 0.05 lower or higher. Click several times for bigger steps. |
+| | **Easier -1 / Harder +1** | Pins the difficulty one threat level lower or higher (for example 5/10 to 4/10). Players are told 20 seconds after your last click, once, for where you ended up. |
 | | **Unpin (learn again)** | Lets the difficulty learn again, starting from where it was pinned. |
 | Danger zone | **Reset brain** | Takes two clicks. Forgets everything and starts again from "as configured". The old brain is kept in `AFHiveMind\backups` as `reset_brain_<date>_<time>.json`. Settings, the freeze and the pin are kept. |
 
@@ -233,10 +233,10 @@ A bot tuned above difficulty 0.6 that is killed by a player may drop one extra i
 
 When the bots change, players hear about it through Expansion's notifications. The **threat level** runs from 1 to 10 and follows the difficulty: **5 is the bots exactly as you configured them**. Only a change of a whole level is announced; small adjustments stay quiet.
 
-- **Whole map:** "AI THREAT LEVEL 6/10: Bots across the whole map got tougher (level 5 to 6). Now: accuracy x1.05 (was x1.00), damage x1.03 (was x1.00), ..." The figures are multipliers of how you configured the bots.
-- **An area:** a farmed zone that sits above or below the map's level is named after the nearest town or village: "AI THREAT LEVEL 7/10: GRISHINO: Players keep winning around Grishino, so bots there are tougher than the rest of the map (level 7, map 6). ... Patrols there come out up to x1.4 as big (at most 3 extra bots)." When it drops back, players are told it is back to the map's level.
+- **Whole map:** "AI THREAT LEVEL 6/10: Bots map-wide got tougher (was 5/10). Accuracy x1.05, damage x1.03, ..." The figures are the bots' current multipliers of how you configured them; only those that differ from x1 are listed.
+- **An area:** a farmed zone with its own adjustment of a whole level or more (0.05 difficulty rounds up to one level) is named after the nearest town or village: "AI THREAT LEVEL 8/10: GRISHINO: Players keep winning here: bots are tougher than the rest of the map (map 6/10). Patrols up to x1.4 bigger." An area is announced only when its own adjustment changes, never because the map's level moved. When the adjustment goes away, players are told it is back to the map's level.
 
-Tougher is shown in red with a skull, easier in green with a shield. At most `NotifyAreasMax` area announcements go out per learning step, biggest changes first. Pinning, resetting or running a step from F10 is announced the same way. The first start after installing or updating announces nothing; it only records the current level. Every announcement is also written to `hivemind.log` ("announced: ..."). The F9 report shows the current level on its second line.
+Tougher is shown in red with a skull, easier in green with a shield. At most `NotifyAreasMax` area announcements go out per learning step, biggest changes first. Changes made from F10 are announced 20 seconds after the last click, once, for where they ended; if you end where you started, nothing is announced. The first start after installing or updating announces nothing; it only records the current level. Every announcement is also written to `hivemind.log` ("announced: ..."). The F9 report shows the current level on its second line.
 
 Notifications use Expansion's own system, so they work with HiveMind loaded on the server only, and they follow Expansion's notification setting (`EnableNotification`).
 

@@ -72,7 +72,7 @@ Press **F10** for the admin controls: the same report with the mouse cursor and 
 | Button | What it does |
 |---|---|
 | Freeze learning / Resume learning | While frozen, no fights are recorded and nothing fades. Bots are still tuned from what it knows, and hard bots still drop bounty loot. Same as `Frozen` in `config.json`. |
-| Pin difficulty, Pin -0.05, Pin +0.05 | Holds the global difficulty at the current figure, or 0.05 lower or higher. Fights are still learned from (tactics, zones, players), but do not move it. Zone and player corrections still apply on top. Same as `PinnedDifficulty`. |
+| Pin difficulty, Easier -1, Harder +1 | Holds the global difficulty at the current figure, or one threat level lower or higher. Fights are still learned from (tactics, zones, players), but do not move it. Zone and player corrections still apply on top. Same as `PinnedDifficulty`. |
 | Unpin | Lets the difficulty learn again, starting from where it was pinned. |
 | Evolve now | Runs the ten-minute learning step at once. |
 | Reset brain | Click twice. Starts over with an empty brain; the old one is kept as `backups\reset_brain_<date>_<time>.json`. Settings, the freeze and the pin are kept. |

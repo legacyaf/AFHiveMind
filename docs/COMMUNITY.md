@@ -140,7 +140,7 @@ Nothing leaves the server. It isn't shared with other servers or any outside ser
 ## For admins
 
 - **Debug panel.** Press **F9** in game to see the version, the current difficulty, what HiveMind has learned (in plain words), and the last patrols it tuned with the reason for each number. Only listed admins can see it.
-- **Admin controls.** Press **F10** for the same report with buttons: freeze learning, pin the difficulty (or nudge it up or down by 0.05), unpin it, run a learning step now, or reset the brain (two clicks; the old brain is kept as a backup). Every press is logged. If the key does nothing, bind it under Controls > AF HiveMind.
+- **Admin controls.** Press **F10** for the same report with buttons: freeze learning, pin the difficulty (or move it one threat level up or down), unpin it, run a learning step now, or reset the brain (two clicks; the old brain is kept as a backup). Every press is logged. If the key does nothing, bind it under Controls > AF HiveMind.
 - **Readable files.** On the server, in `profile\AFHiveMind\`:
   - `brain.json`: everything it has learned
   - `report.txt`: the same in plain English

@@ -398,6 +398,10 @@ class AFHM_ReportView
 		// Sections: a small title, then each finding in its own bubble.
 		float bubbleMax = (width - 2 * PAD) * 0.86;
 		bool cut = false;
+		// A section title is drawn only once the item under it fits, so a cut never leaves an
+		// empty title at the bottom.
+		string pendingTitle = "";
+		float pendingY = 0;
 		foreach (string item: body)
 		{
 			int sep = item.IndexOf("|");
@@ -410,11 +414,10 @@ class AFHM_ReportView
 					cut = true;
 					break;
 				}
-				if (draw)
-					string upperTitle = text;
-					upperTitle.ToUpper();
-					AFHM_Ui.Text(f, upperTitle, PAD + 8, y, width - 2 * PAD, 18, 12, label);
+				pendingTitle = text;
+				pendingY = y;
 				y += 22;
+				continue;
 			}
 			else if (kind == "P")
 			{
@@ -435,6 +438,8 @@ class AFHM_ReportView
 					cut = true;
 					break;
 				}
+				AFHM_ReportView.DrawTitle(f, pendingTitle, pendingY, width, label, draw);
+				pendingTitle = "";
 				if (draw)
 				{
 					float px = width - PAD - pw;
@@ -459,6 +464,8 @@ class AFHM_ReportView
 					cut = true;
 					break;
 				}
+				AFHM_ReportView.DrawTitle(f, pendingTitle, pendingY, width, label, draw);
+				pendingTitle = "";
 				if (draw)
 				{
 					new AFHM_Bubble(f, PAD, y, bw, bh, 16, grey);
@@ -468,6 +475,9 @@ class AFHM_ReportView
 				y += bh + 6;
 			}
 		}
+		// A title with nothing under it gives its place to the note below.
+		if (pendingTitle != "")
+			y = pendingY;
 		if (cut)
 		{
 			if (draw)
@@ -475,5 +485,14 @@ class AFHM_ReportView
 			y += 22;
 		}
 		return y + PAD;
+	}
+
+	protected static void DrawTitle(Widget f, string title, float y, float width, int color, bool draw)
+	{
+		if (!draw || title == "")
+			return;
+		string upperTitle = title;
+		upperTitle.ToUpper();
+		AFHM_Ui.Text(f, upperTitle, PAD + 8, y, width - 2 * PAD, 18, 12, color);
 	}
 };

@@ -7,8 +7,10 @@
 class AFHM_Const
 {
 	// Keep equal to version in config.cpp (tools\release.ps1 checks). Shown at the top of the report.
-	static const string VERSION = "0.5.0";
+	static const string VERSION = "0.5.1";
 	static const string DIR = "$profile:AFHiveMind";
+	// F10 clicks are announced this long after the last click, for where they ended.
+	static const int ADMIN_ANNOUNCE_DELAY_MS = 20000;
 	static const string CONFIG_PATH = "$profile:AFHiveMind/config.json";
 	static const string BRAIN_PATH = "$profile:AFHiveMind/brain.json";
 	static const string REPORT_PATH = "$profile:AFHiveMind/report.txt";
@@ -209,6 +211,8 @@ class AFHM_Brain
 	// update does not open with a burst of notifications.
 	float AnnouncedDifficulty = -1;
 	ref map<string, float> AnnouncedAreas = new map<string, float>;
+	// How AnnouncedAreas is measured; another figure means: record again, announce nothing.
+	int AnnounceFormat = 0;
 
 	// A hand-edited or older file may miss parts.
 	void Validate()

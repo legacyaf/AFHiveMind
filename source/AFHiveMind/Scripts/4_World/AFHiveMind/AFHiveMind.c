@@ -1077,11 +1077,11 @@ class AFHiveMind
 		}
 		else if (cmd == "pin_down")
 		{
-			done = "pinned difficulty at " + AFHM_Util.F(PinAt(current - 0.05));
+			done = "pinned difficulty at " + AFHM_Util.F(PinAt(LevelStep(current, -1)));
 		}
 		else if (cmd == "pin_up")
 		{
-			done = "pinned difficulty at " + AFHM_Util.F(PinAt(current + 0.05));
+			done = "pinned difficulty at " + AFHM_Util.F(PinAt(LevelStep(current, 1)));
 		}
 		else if (cmd == "unpin")
 		{
@@ -1106,8 +1106,31 @@ class AFHiveMind
 		AFHM_Util.Log("admin " + name + ": " + done);
 		SaveConfig();
 		RefreshInsights();
+		Save();
+		AnnounceSoon();
+	}
+
+	// Admin clicks are announced after a short wait, so several clicks in a row give one
+	// notification for where they ended (and none if they ended where they started).
+	protected void AnnounceSoon()
+	{
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).Remove(AnnounceNow);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(AnnounceNow, AFHM_Const.ADMIN_ANNOUNCE_DELAY_MS, false);
+	}
+
+	void AnnounceNow()
+	{
 		AFHM_Announcer.Check(this);
 		Save();
+	}
+
+	// The middle of the threat level one above (+1) or below (-1) the given difficulty, so
+	// every Easier/Harder click moves the level by exactly one (1-10).
+	protected float LevelStep(float difficulty, int dir)
+	{
+		int level = Math.Clamp(AFHM_Announcer.Level(difficulty) + dir, 1, 10);
+		float target = level;
+		return target / 10;
 	}
 
 	protected float PinAt(float value)
@@ -1135,6 +1158,7 @@ class AFHiveMind
 		fresh.Validate();
 		// Keep what players were last told, so they hear that the bots went back to normal.
 		fresh.AnnouncedDifficulty = m_Brain.AnnouncedDifficulty;
+		fresh.AnnounceFormat = m_Brain.AnnounceFormat;
 		array<string> told = m_Brain.AnnouncedAreas.GetKeyArray();
 		foreach (string toldKey: told)
 			fresh.AnnouncedAreas.Set(toldKey, m_Brain.AnnouncedAreas.Get(toldKey));

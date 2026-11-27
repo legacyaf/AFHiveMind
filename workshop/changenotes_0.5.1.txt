@@ -1,0 +1,9 @@
+[h2]0.5.1[/h2]
+[list]
+[*][b]Shorter notifications[/b]: one or two lines each. The map one gives the new level, the old one and the bots' current multipliers ("Bots map-wide got tougher (was 5/10). Accuracy x1.08, damage x1.05."). An area one says why and how it compares to the map ("Players keep winning here: bots are tougher than the rest of the map (map 5/10). Patrols up to x1.4 bigger.").
+[*][b]Easier/Harder in F10 now move the threat level by exactly one[/b] per click. Before, a click moved the difficulty 0.05, half a level, so the level often changed only every second click.
+[*][b]No more wrong "tougher" messages[/b]: an area is now announced only when its own adjustment changes, not when the map's level moves. Before, lowering the map could announce an area as tougher. Red/green now follows whether that area got tougher or easier than players were last told.
+[*][b]No spam from admin clicks[/b]: F10 changes are announced 20 seconds after the last click, once, for where you ended up. Clicking Harder then Easier announces nothing.
+[*]F9/F10 report: a section title no longer sits alone at the bottom when the panel runs out of room.
+[*]The first start after updating records the current state again without announcing anything.
+[/list]
