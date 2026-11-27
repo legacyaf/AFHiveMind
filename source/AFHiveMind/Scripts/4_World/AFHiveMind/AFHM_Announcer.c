@@ -11,6 +11,8 @@
 class AFHM_Announcer
 {
 	protected static ref array<ref ExpansionLocation> s_Towns;
+	// The last announcement sent, title and text (read by the test mission).
+	static string s_LastSent;
 
 	// How AnnouncedAreas is measured (AFHM_Brain.AnnounceFormat). 0.5.0 stored gaps measured
 	// against the map's rounded level; from 0.5.1 an area's gap comes from its own offset only.
@@ -131,71 +133,99 @@ class AFHM_Announcer
 		return offset;
 	}
 
-	// "AI THREAT LEVEL 6/10" / "Bots map-wide got tougher (was 5/10). Accuracy x1.08, damage x1.05."
+	// The whole map's level changed. Wording from config.json (NotifyTitleMap, NotifyMapTougher,
+	// NotifyMapEasier).
 	protected static void AnnounceMap(AFHiveMind hm, float was, float now)
 	{
+		AFHM_Config cfg = hm.m_Config;
 		int levelWas = AFHM_Announcer.Level(was);
 		int levelNow = AFHM_Announcer.Level(now);
 		bool tougher = levelNow > levelWas;
-		string title = "AI THREAT LEVEL " + levelNow.ToString() + "/10";
-		string text = "Bots map-wide got ";
+		string text = cfg.NotifyMapEasier;
 		if (tougher)
-			text += "tougher";
-		else
-			text += "easier";
-		text += " (was " + levelWas.ToString() + "/10). " + AFHM_Announcer.Scales(hm, now);
-		AFHM_Announcer.Send(hm, title, text, tougher);
+			text = cfg.NotifyMapTougher;
+		if (text == "")
+			return;
+		map<string, string> values = new map<string, string>;
+		values.Set("level", levelNow.ToString());
+		values.Set("was", levelWas.ToString());
+		values.Set("map", levelNow.ToString());
+		values.Set("changes", AFHM_Announcer.Scales(hm, now));
+		AFHM_Announcer.Send(hm, AFHM_Announcer.Fill(cfg.NotifyTitleMap, values), AFHM_Announcer.Fill(text, values), tougher);
 	}
 
-	// "AI THREAT LEVEL 7/10: KAMENKA" / "Players keep winning here: bots are tougher than the
-	// rest of the map (5/10). Patrols up to x1.4 bigger."
+	// An area's own adjustment changed. Wording from config.json (NotifyTitleArea,
+	// NotifyAreaTougher, NotifyAreaEasier, NotifyAreaBack, NotifyPatrols).
 	protected static void AnnounceArea(AFHiveMind hm, string key, int gap, int lastGap)
 	{
+		AFHM_Config cfg = hm.m_Config;
+		string text = cfg.NotifyAreaBack;
+		if (gap > 0)
+			text = cfg.NotifyAreaTougher;
+		else if (gap < 0)
+			text = cfg.NotifyAreaEasier;
+		if (text == "")
+			return;
+
 		float mapD = hm.m_Brain.Difficulty;
 		int levelMap = AFHM_Announcer.Level(mapD);
 		int levelArea = AFHM_Announcer.Level(Math.Clamp(mapD + AFHM_Announcer.AreaOffset(hm, key), 0, 1));
-		string place = AFHM_Announcer.PlaceName(hm.ZoneCentre(key));
+		vector centre = hm.ZoneCentre(key);
+		string place = AFHM_Announcer.PlaceName(centre);
 		string upperPlace = place;
 		upperPlace.ToUpper();
-		string title = "AI THREAT LEVEL " + levelArea.ToString() + "/10: " + upperPlace;
-		string mapText = " (map " + levelMap.ToString() + "/10).";
-		string text;
-		if (gap == 0)
+
+		string patrols = "";
+		string bigger = "1";
+		float strength = hm.HotZoneStrength(centre);
+		if (gap > 0 && cfg.HotZoneExtraBots && strength > 0 && cfg.HotZoneExtraBotsMax > 0)
 		{
-			text = "Bots here are back to the map's level" + mapText;
+			float biggerBy = 1 + Math.Round(strength * cfg.HotZoneExtraShareMax * 10) / 10;
+			bigger = AFHM_Util.F(biggerBy, 1);
+			if (biggerBy > 1.05)
+				patrols = cfg.NotifyPatrols;
 		}
-		else if (gap > 0)
-		{
-			text = "Players keep winning here: bots are tougher than the rest of the map" + mapText;
-			float strength = hm.HotZoneStrength(hm.ZoneCentre(key));
-			if (hm.m_Config.HotZoneExtraBots && strength > 0 && hm.m_Config.HotZoneExtraBotsMax > 0)
-			{
-				float bigger = 1 + Math.Round(strength * hm.m_Config.HotZoneExtraShareMax * 10) / 10;
-				if (bigger > 1.05)
-					text += " Patrols up to x" + AFHM_Util.F(bigger, 1) + " bigger.";
-			}
-		}
-		else
-		{
-			text = "Bots keep winning here: they ease off compared to the rest of the map" + mapText;
-		}
+
+		map<string, string> values = new map<string, string>;
+		values.Set("level", levelArea.ToString());
+		values.Set("was", levelMap.ToString());
+		values.Set("map", levelMap.ToString());
+		values.Set("place", place);
+		values.Set("PLACE", upperPlace);
+		values.Set("bigger", bigger);
+		values.Set("extra", cfg.HotZoneExtraBotsMax.ToString());
+		values.Set("changes", AFHM_Announcer.Scales(hm, Math.Clamp(mapD + AFHM_Announcer.AreaOffset(hm, key), 0, 1)));
+		values.Set("patrols", AFHM_Announcer.Fill(patrols, values));
 		// Red when this area got tougher than players were last told, green when it eased off.
-		AFHM_Announcer.Send(hm, title, text, gap > lastGap);
+		AFHM_Announcer.Send(hm, AFHM_Announcer.Fill(cfg.NotifyTitleArea, values), AFHM_Announcer.Fill(text, values), gap > lastGap);
+	}
+
+	// Replaces each {name} in the template with its value, and tidies the spaces an empty
+	// value leaves behind.
+	static string Fill(string template, map<string, string> values)
+	{
+		string text = template;
+		foreach (string name, string value: values)
+			text.Replace("{" + name + "}", value);
+		while (text.Contains("  "))
+			text.Replace("  ", " ");
+		text = text.Trim();
+		return text;
 	}
 
 	// "Accuracy x1.16, damage x1.09, hearing x1.09." against how the admins configured the bots;
-	// only what differs from x1 is listed.
+	// only what differs from x1 is listed. The words come from config.json.
 	protected static string Scales(AFHiveMind hm, float d)
 	{
 		AFHM_Config cfg = hm.m_Config;
 		array<string> parts = new array<string>;
-		AFHM_Announcer.AddScale(parts, "accuracy", d, cfg.AccuracyScaleMin, cfg.AccuracyScaleMax);
-		AFHM_Announcer.AddScale(parts, "damage", d, cfg.DamageScaleMin, cfg.DamageScaleMax);
-		AFHM_Announcer.AddScale(parts, "damage taken", d, cfg.DamageReceivedScaleEasy, cfg.DamageReceivedScaleHard);
-		AFHM_Announcer.AddScale(parts, "sight", d, cfg.ThreatScaleEasy, cfg.ThreatScaleHard);
-		AFHM_Announcer.AddScale(parts, "hearing", d, cfg.NoiseScaleEasy, cfg.NoiseScaleHard);
+		AFHM_Announcer.AddScale(parts, cfg.NotifyWordAccuracy, d, cfg.AccuracyScaleMin, cfg.AccuracyScaleMax);
+		AFHM_Announcer.AddScale(parts, cfg.NotifyWordDamage, d, cfg.DamageScaleMin, cfg.DamageScaleMax);
+		AFHM_Announcer.AddScale(parts, cfg.NotifyWordDamageTaken, d, cfg.DamageReceivedScaleEasy, cfg.DamageReceivedScaleHard);
+		AFHM_Announcer.AddScale(parts, cfg.NotifyWordSight, d, cfg.ThreatScaleEasy, cfg.ThreatScaleHard);
+		AFHM_Announcer.AddScale(parts, cfg.NotifyWordHearing, d, cfg.NoiseScaleEasy, cfg.NoiseScaleHard);
 		if (parts.Count() == 0)
-			return "Bots are as the server set them.";
+			return cfg.NotifyAsConfigured;
 		string head = parts[0];
 		string first = head.Substring(0, 1);
 		first.ToUpper();
@@ -209,9 +239,28 @@ class AFHM_Announcer
 	{
 		// Multipliers, not percent: Expansion's notifications strip "%" from the text.
 		float scale = Math.Round(AFHiveMind.ScaleFor(d, lo, hi) * 100) / 100;
-		if (Math.AbsFloat(scale - 1) < 0.005)
+		if (label == "" || Math.AbsFloat(scale - 1) < 0.005)
 			return;
 		parts.Insert(label + " x" + AFHM_Util.F(scale));
+	}
+
+	// "220 60 60" (or "220,60,60") to a colour; anything unreadable gives the fallback.
+	static int Colour(string rgb, int fallback)
+	{
+		string clean = rgb;
+		clean.Replace(",", " ");
+		array<string> bits = new array<string>;
+		clean.Split(" ", bits);
+		array<int> nums = new array<int>;
+		foreach (string bit: bits)
+		{
+			string trimmed = bit.Trim();
+			if (trimmed != "")
+				nums.Insert(Math.Clamp(trimmed.ToInt(), 0, 255));
+		}
+		if (nums.Count() < 3)
+			return fallback;
+		return ARGB(255, nums[0], nums[1], nums[2]);
 	}
 
 	// The nearest town or village on this map, from the map's own list of places.
@@ -277,13 +326,16 @@ class AFHM_Announcer
 		// DayZ drops RPCs with long strings, and long notifications cover the screen.
 		if (text.Length() > 250)
 			text = text.Substring(0, 247) + "...";
+		if (title.Length() > 80)
+			title = title.Substring(0, 77) + "...";
 
-		string icon = "Shield";
-		int color = ARGB(255, 80, 200, 120);
+		AFHM_Config cfg = hm.m_Config;
+		string icon = cfg.NotifyIconEasier;
+		int color = AFHM_Announcer.Colour(cfg.NotifyColorEasier, ARGB(255, 80, 200, 120));
 		if (tougher)
 		{
-			icon = "Skull 1";
-			color = ARGB(255, 220, 60, 60);
+			icon = cfg.NotifyIconTougher;
+			color = AFHM_Announcer.Colour(cfg.NotifyColorTougher, ARGB(255, 220, 60, 60));
 		}
 
 		if (hm.m_Config.NotifyPlayers)
@@ -301,6 +353,7 @@ class AFHM_Announcer
 					ExpansionNotification(title, text, icon, color, hm.m_Config.NotifySeconds).Create(identity);
 			}
 		}
-		AFHM_Util.Log("announced: " + title + " | " + text);
+		s_LastSent = title + " | " + text;
+		AFHM_Util.Log("announced: " + s_LastSent);
 	}
 };

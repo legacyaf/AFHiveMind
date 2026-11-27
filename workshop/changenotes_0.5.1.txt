@@ -4,6 +4,8 @@
 [*][b]Easier/Harder in F10 now move the threat level by exactly one[/b] per click. Before, a click moved the difficulty 0.05, half a level, so the level often changed only every second click.
 [*][b]No more wrong "tougher" messages[/b]: an area is now announced only when its own adjustment changes, not when the map's level moves. Before, lowering the map could announce an area as tougher. Red/green now follows whether that area got tougher or easier than players were last told.
 [*][b]No spam from admin clicks[/b]: F10 changes are announced 20 seconds after the last click, once, for where you ended up. Clicking Harder then Easier announces nothing.
+[*][b]Notification wording is now in config.json[/b]: titles, texts, the words for each figure, icons and colours, with placeholders such as {level}, {place} and {changes}. Empty a text to turn that kind of message off. See the Server Guide.
+[*][b]Move the F10 window[/b] by dragging its top edge. It reopens where you left it.
 [*]F9/F10 report: a section title no longer sits alone at the bottom when the panel runs out of room.
 [*]The first start after updating records the current state again without announcing anything.
 [/list]

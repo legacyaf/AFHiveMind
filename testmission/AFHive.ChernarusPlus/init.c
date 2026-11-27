@@ -40,6 +40,8 @@ class CustomMission: MissionGameplay
 	protected int m_HiveVolleys;
 	protected float m_AnnouncedBefore;
 	protected int m_LevelBefore;
+	protected float m_DragX;
+	protected float m_DragY;
 	protected eAIDynamicPatrol m_Alpha;
 	protected eAIDynamicPatrol m_Bravo;
 
@@ -386,6 +388,25 @@ class CustomMission: MissionGameplay
 				if (m_HiveStepTime >= 4)
 				{
 					Print("[AFHive] SHOT admin_controls");
+					// Ask the runner to drag the window by its top strip, 200 px left and 120 down.
+					if (AFHM_ControlsPos(m_DragX, m_DragY))
+						Print("[AFHive] PRESS DRAG " + Math.Round(m_DragX + 300).ToString() + " " + Math.Round(m_DragY + 20).ToString() + " -200 120");
+					m_HiveStep = 205;
+					m_HiveStepTime = 0;
+				}
+				break;
+			case 205:
+				if (m_HiveStepTime >= 5)
+				{
+					float dragX;
+					float dragY;
+					AFHM_ControlsPos(dragX, dragY);
+					Print("[AFHive] window moved from " + m_DragX.ToString() + "," + m_DragY.ToString() + " to " + dragX.ToString() + "," + dragY.ToString());
+					if (Math.AbsFloat(dragX - m_DragX) > 50 && Math.AbsFloat(dragY - m_DragY) > 30)
+						Print("[AFHive] drag moved the admin controls window");
+					else
+						Print("[AFHive] drag NOT confirmed (the window did not move; check the picture)");
+					Print("[AFHive] SHOT admin_dragged");
 					m_HiveStep = 202;
 					m_HiveStepTime = 0;
 				}
@@ -413,6 +434,8 @@ class CustomMission: MissionGameplay
 					// Easier/Harder move the threat level by exactly one per click, and clicks in a
 					// row are announced once, for where they ended.
 					AFHiveMind hmPin = AFHiveMind.Get();
+					// The wording comes from config.json: a test text must be the one sent.
+					hmPin.m_Config.NotifyMapEasier = "TEST easier: {was} to {level}. {changes}";
 					m_LevelBefore = AFHM_Announcer.Level(hmPin.m_Brain.Difficulty);
 					int toldBefore = AFHM_Announcer.Level(hmPin.m_Brain.AnnouncedDifficulty);
 					hmPin.AdminCommand(null, "pin_up");
@@ -434,7 +457,11 @@ class CustomMission: MissionGameplay
 				{
 					AFHiveMind hmTold = AFHiveMind.Get();
 					int toldNow = AFHM_Announcer.Level(hmTold.m_Brain.AnnouncedDifficulty);
-					Print("[AFHive] after the wait, players were told level " + toldNow.ToString());
+					Print("[AFHive] after the wait, players were told level " + toldNow.ToString() + ": " + AFHM_Announcer.s_LastSent);
+					if (AFHM_Announcer.s_LastSent.IndexOf("TEST easier: ") < 0)
+						Print("[AFHive] FAILED: the announcement did not use the text from config.json");
+					AFHM_Config plain = new AFHM_Config();
+					hmTold.m_Config.NotifyMapEasier = plain.NotifyMapEasier;
 					if (toldNow != AFHM_Announcer.Level(hmTold.m_Brain.Difficulty))
 						Print("[AFHive] FAILED: the admin clicks were not announced after the wait");
 					Print("[AFHive] SHOT admin_notification");

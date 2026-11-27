@@ -148,6 +148,34 @@ class AFHM_Config
 	bool NotifyPlayers = true;
 	int NotifyAreasMax = 2;
 	float NotifySeconds = 12;
+
+	// The wording of the announcements. Placeholders, filled in when one is sent:
+	//   {level}   the new threat level (1-10)        {was}     the level players were last told
+	//   {map}     the whole map's level               {place}   the nearest town, {PLACE} in capitals
+	//   {changes} the bots' multipliers, e.g. "Accuracy x1.08, damage x1.05." (or NotifyAsConfigured)
+	//   {patrols} NotifyPatrols when hot-zone patrols are bigger there, else nothing
+	//   {bigger}  how much bigger those patrols get, e.g. 1.4   {extra} the most extra bots
+	// An empty text turns that kind of announcement off. Expansion strips "%" from notifications.
+	string NotifyTitleMap = "AI THREAT LEVEL {level}/10";
+	string NotifyTitleArea = "AI THREAT LEVEL {level}/10: {PLACE}";
+	string NotifyMapTougher = "Bots map-wide got tougher (was {was}/10). {changes}";
+	string NotifyMapEasier = "Bots map-wide got easier (was {was}/10). {changes}";
+	string NotifyAreaTougher = "Players keep winning here: bots are tougher than the rest of the map (map {map}/10). {patrols}";
+	string NotifyAreaEasier = "Bots keep winning here: they ease off compared to the rest of the map (map {map}/10).";
+	string NotifyAreaBack = "Bots here are back to the map's level (map {map}/10).";
+	string NotifyPatrols = "Patrols up to x{bigger} bigger.";
+	string NotifyAsConfigured = "Bots are as the server set them.";
+	// The words used in {changes}.
+	string NotifyWordAccuracy = "accuracy";
+	string NotifyWordDamage = "damage";
+	string NotifyWordDamageTaken = "damage taken";
+	string NotifyWordSight = "sight";
+	string NotifyWordHearing = "hearing";
+	// Expansion icon names, and colours as "red green blue" (0-255).
+	string NotifyIconTougher = "Skull 1";
+	string NotifyIconEasier = "Shield";
+	string NotifyColorTougher = "220 60 60";
+	string NotifyColorEasier = "80 200 120";
 };
 
 class AFHM_ZoneStats

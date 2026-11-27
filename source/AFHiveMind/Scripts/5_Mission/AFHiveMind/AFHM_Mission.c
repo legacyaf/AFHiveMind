@@ -136,6 +136,16 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	protected float m_Age;
 	protected bool m_EscWasDown;
 	protected int m_Stamp = -1;
+	// Moving the window: drag its top strip. Where it was left is kept for the next time it opens.
+	protected static const float DRAG_STRIP = 56;
+	protected static bool s_HasPos;
+	protected static float s_PosX;
+	protected static float s_PosY;
+	protected float m_Width;
+	protected bool m_Dragging;
+	protected bool m_MouseWasDown;
+	protected float m_GrabX;
+	protected float m_GrabY;
 
 	override int GetID()
 	{
@@ -150,7 +160,15 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		float width = MARGIN + REPORT_W + MARGIN + SIDE_W + MARGIN;
 		m_Height = Math.Min(screenH - 60, 860);
 
-		layoutRoot = AFHM_Ui.Frame(null, Math.Max((screenW - width) / 2, 0), Math.Max((screenH - m_Height) / 2, 0), width, m_Height);
+		m_Width = width;
+		float startX = Math.Max((screenW - width) / 2, 0);
+		float startY = Math.Max((screenH - m_Height) / 2, 0);
+		if (s_HasPos)
+		{
+			startX = Math.Clamp(s_PosX, 0, Math.Max(screenW - width, 0));
+			startY = Math.Clamp(s_PosY, 0, Math.Max(screenH - m_Height, 0));
+		}
+		layoutRoot = AFHM_Ui.Frame(null, startX, startY, width, m_Height);
 		if (!layoutRoot)
 		{
 			Print("[AFHiveMind] admin controls: could not create the window");
@@ -163,6 +181,8 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		m_ReportHolder = AFHM_Ui.Frame(layoutRoot, MARGIN, 0, REPORT_W, m_Height);
 		float sx = MARGIN + REPORT_W + MARGIN;
 		new AFHM_Bubble(layoutRoot, sx, MARGIN, SIDE_W, m_Height - 2 * MARGIN, 20, AFHM_Ui.Rgba(44, 44, 46, 0.62));
+		// A grip at the top centre shows the window can be dragged.
+		new AFHM_Bubble(layoutRoot, (width - 44) / 2, 6, 44, 5, 2, AFHM_Ui.Rgba(255, 255, 255, 0.35));
 
 		int label = ARGB(255, 142, 142, 147);
 		float bx = sx + 14;
@@ -337,6 +357,46 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		return "Sent.";
 	}
 
+	// Press on the top strip and move the mouse to move the window; it stays on screen.
+	protected void Drag()
+	{
+		if (!layoutRoot)
+			return;
+		int mx;
+		int my;
+		GetMousePos(mx, my);
+		bool down = (GetMouseState(MouseState.LEFT) & MB_PRESSED_MASK) != 0;
+		float wx;
+		float wy;
+		layoutRoot.GetPos(wx, wy);
+
+		if (down && !m_MouseWasDown)
+		{
+			bool inside = mx >= wx && mx <= wx + m_Width && my >= wy && my <= wy + DRAG_STRIP;
+			if (inside)
+			{
+				m_Dragging = true;
+				m_GrabX = mx - wx;
+				m_GrabY = my - wy;
+			}
+		}
+		if (!down)
+			m_Dragging = false;
+		m_MouseWasDown = down;
+
+		if (!m_Dragging)
+			return;
+		int screenW;
+		int screenH;
+		GetScreenSize(screenW, screenH);
+		float nx = Math.Clamp(mx - m_GrabX, 0, Math.Max(screenW - m_Width, 0));
+		float ny = Math.Clamp(my - m_GrabY, 0, Math.Max(screenH - m_Height, 0));
+		layoutRoot.SetPos(nx, ny);
+		s_HasPos = true;
+		s_PosX = nx;
+		s_PosY = ny;
+	}
+
 	bool AFHM_Highlight(Widget w, bool on)
 	{
 		if (!w || w.GetName().IndexOf(PREFIX) != 0)
@@ -372,6 +432,8 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 				Close();
 			return;
 		}
+
+		Drag();
 
 		foreach (string cmd, AFHM_Button button: m_Buttons)
 			button.Update(timeslice);
@@ -430,6 +492,15 @@ modded class MissionGameplay
 	bool AFHM_ControlsOpen()
 	{
 		return m_AFHM_Controls && GetGame().GetUIManager().GetMenu() == m_AFHM_Controls;
+	}
+
+	// Top-left corner of the admin controls window, in screen pixels. False when it is closed.
+	bool AFHM_ControlsPos(out float x, out float y)
+	{
+		if (!AFHM_ControlsOpen() || !m_AFHM_Controls.GetLayoutRoot())
+			return false;
+		m_AFHM_Controls.GetLayoutRoot().GetPos(x, y);
+		return true;
 	}
 
 	void AFHM_ShowPanel(bool show)

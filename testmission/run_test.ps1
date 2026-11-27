@@ -1,7 +1,7 @@
 # Starts the offline HiveMind test (mission AFHive, see its init.c), follows the script log
 # until the mission prints TOUR DONE, and saves a picture of the DayZ window at each SHOT.
 # Once, it brings the DayZ window to the front and presses Esc in it (the admin controls
-# test): leave the mouse and keyboard alone while it runs.
+# test), and drags that window with the mouse: leave the mouse and keyboard alone while it runs.
 # Pictures go to testmission\captures. Needs Steam running and these Workshop mods
 # installed: CF, Dabs Framework, DayZ-Expansion-Core, DayZ-Expansion-AI.
 #   run_test.ps1          start with whatever brain.json the test profile already holds
@@ -21,6 +21,10 @@ public static class AFWin {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref POINT p);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
 }
 '@
 [AFWin]::SetProcessDPIAware() | Out-Null
@@ -90,6 +94,28 @@ while ((Get-Date) -lt $deadline -and -not $done) {
                 [AFWin]::keybd_event(0x1B, 0x01, 2, [UIntPtr]::Zero)
                 'pressed Esc in the game window'
             } else { 'could not press Esc: the DayZ window would not come to the front' }
+        }
+        # The mission asks for a mouse drag of the admin controls window (client pixels, then the
+        # distance to move). Like the Esc press, only while the DayZ window is in front.
+        $drag = [regex]::Match($text, '\[AFHive\] PRESS DRAG (-?\d+) (-?\d+) (-?\d+) (-?\d+)')
+        if ($drag.Success -and -not $seen.ContainsKey('#drag')) {
+            $seen['#drag'] = $true
+            $game.Refresh(); $h = $game.MainWindowHandle
+            if ($h -ne 0 -and [AFWin]::GetForegroundWindow() -ne $h) { [AFWin]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 400 }
+            if ($h -ne 0 -and [AFWin]::GetForegroundWindow() -eq $h) {
+                $pt = New-Object AFWin+POINT; $pt.X = [int]$drag.Groups[1].Value; $pt.Y = [int]$drag.Groups[2].Value
+                [AFWin]::ClientToScreen($h, [ref]$pt) | Out-Null
+                $dx = [int]$drag.Groups[3].Value; $dy = [int]$drag.Groups[4].Value
+                [AFWin]::SetCursorPos($pt.X, $pt.Y) | Out-Null; Start-Sleep -Milliseconds 200
+                [AFWin]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 150
+                for ($s = 1; $s -le 12; $s++) {
+                    [AFWin]::SetCursorPos($pt.X + [int]($dx * $s / 12), $pt.Y + [int]($dy * $s / 12)) | Out-Null
+                    Start-Sleep -Milliseconds 40
+                }
+                Start-Sleep -Milliseconds 150
+                [AFWin]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+                'dragged the admin controls in the game window'
+            } else { 'could not drag: the DayZ window would not come to the front' }
         }
         if ($text -match 'TOUR DONE') { $done = $true }
         if ($text -match 'ompile error|Can.t compile') { break }

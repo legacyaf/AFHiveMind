@@ -113,7 +113,7 @@ Players who are not listed see "you are not listed under Admins in config.json".
 
 ### F10: the admin controls
 
-**F10** opens the admin controls in the middle of the screen: one see-through rounded window, with the report on the left and the buttons on the right. **Esc** or **Close** shuts it.
+**F10** opens the admin controls in the middle of the screen: one see-through rounded window, with the report on the left and the buttons on the right. **Esc** or **Close** shuts it. To move it, drag its top edge (the small bar at the top centre); it opens where you left it until you restart the game.
 
 The report on both F9 and F10 is laid out like a chat:
 
@@ -354,6 +354,25 @@ Change a value, save, and it applies at the next learning step, or at once after
 | `NotifyPlayers` | true | false: only the admins listed in `Admins` get them. |
 | `NotifyAreasMax` | 2 | Area announcements per learning step at most. 0: whole map only. |
 | `NotifySeconds` | 12 | How long each notification stays on screen. |
+
+**The wording is yours to change.** Every announcement is built from a template in `config.json`. Edit the text, restart the server, and the next announcement uses it.
+
+| Setting | Default |
+|---|---|
+| `NotifyTitleMap` | `AI THREAT LEVEL {level}/10` |
+| `NotifyTitleArea` | `AI THREAT LEVEL {level}/10: {PLACE}` |
+| `NotifyMapTougher` | `Bots map-wide got tougher (was {was}/10). {changes}` |
+| `NotifyMapEasier` | `Bots map-wide got easier (was {was}/10). {changes}` |
+| `NotifyAreaTougher` | `Players keep winning here: bots are tougher than the rest of the map (map {map}/10). {patrols}` |
+| `NotifyAreaEasier` | `Bots keep winning here: they ease off compared to the rest of the map (map {map}/10).` |
+| `NotifyAreaBack` | `Bots here are back to the map's level (map {map}/10).` |
+| `NotifyPatrols` | `Patrols up to x{bigger} bigger.` (used for `{patrols}`) |
+| `NotifyAsConfigured` | `Bots are as the server set them.` (used for `{changes}` at level 5) |
+| `NotifyWordAccuracy`, `NotifyWordDamage`, `NotifyWordDamageTaken`, `NotifyWordSight`, `NotifyWordHearing` | The words in `{changes}`. An empty word leaves that figure out. |
+| `NotifyIconTougher`, `NotifyIconEasier` | `Skull 1`, `Shield` (Expansion icon names) |
+| `NotifyColorTougher`, `NotifyColorEasier` | `220 60 60`, `80 200 120` (red green blue, 0-255) |
+
+Placeholders: `{level}` the new level, `{was}` the level before (for an area, the map's), `{map}` the map's level, `{place}` the nearest town (`{PLACE}` in capitals), `{changes}` the bots' multipliers ("Accuracy x1.08, damage x1.05."), `{patrols}` the `NotifyPatrols` text when patrols there are bigger, `{bigger}` how much bigger, `{extra}` the most extra bots. An empty text turns that kind of announcement off, for example `"NotifyAreaEasier": ""`. Texts are cut at 250 characters and titles at 80, and Expansion removes `%` signs.
 
 ## 10. Common recipes
 
