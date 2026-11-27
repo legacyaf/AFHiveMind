@@ -110,9 +110,9 @@ modded class PlayerBase
 			// Sent line by line: one long string does not survive the trip.
 			array<string> lines = new array<string>;
 			if (hm.IsAdmin(sender))
-				lines = hm.PanelLines();
+				lines = hm.PanelItems();
 			else
-				lines.Insert("AF HiveMind: you are not listed under Admins in config.json.");
+				lines.Insert("H|AF HiveMind"); lines.Insert("T|No access"); lines.Insert("I|You are not listed under Admins in config.json.");
 			AFHM_SendReport(sender, lines);
 		}
 		else if (rpc_type == AFHM_Const.RPC_COMMAND)
@@ -128,11 +128,11 @@ modded class PlayerBase
 			if (hmCmd.IsAdmin(sender))
 			{
 				hmCmd.AdminCommand(sender, cmd);
-				cmdLines = hmCmd.PanelLines();
+				cmdLines = hmCmd.PanelItems();
 			}
 			else
 			{
-				cmdLines.Insert("AF HiveMind: you are not listed under Admins in config.json.");
+				cmdLines.Insert("H|AF HiveMind"); cmdLines.Insert("T|No access"); cmdLines.Insert("I|You are not listed under Admins in config.json.");
 				AFHM_Util.Log("refused admin command '" + cmd + "' from a player not listed under Admins");
 			}
 			AFHM_SendReport(sender, cmdLines);

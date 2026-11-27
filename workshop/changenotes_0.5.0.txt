@@ -1,0 +1,8 @@
+[h2]0.5.0[/h2]
+[list]
+[*][b]Threat level notifications[/b]: when the bots change, everyone gets an Expansion notification with the new threat level (1-10, where 5 is the bots as you configured them), the area it applies to (the whole map, or a farmed area named after the nearest town), and what changed (accuracy, damage, damage taken, sight and hearing, as multipliers such as x1.05), and for an area how much bigger patrols get. Tougher shows in red, easier in green.
+[*]Only whole-level changes are announced, at most 2 areas per learning step. The first start after updating only records the current level, so there's no burst of messages.
+[*]Settings: Notify, NotifyPlayers (false = admins only), NotifyAreasMax, NotifySeconds.
+[*][b]New look for F9 and F10[/b]: see-through rounded windows in the style of a chat app. A blue threat-level card with a 10-step bar and status chips, a card of key facts, findings sorted into topics (Difficulty, How players fight, Hot zones, Time of day, Loot) as separate bubbles, and the latest patrols with the nearest town.
+[*][b]F10 admin controls[/b]: buttons grouped into Learning, Difficulty and Danger zone, with smooth hover and click effects and a note confirming each press. [b]Esc now closes the menu[/b] without opening the pause menu.
+[/list]

@@ -7,7 +7,7 @@
 class AFHM_Const
 {
 	// Keep equal to version in config.cpp (tools\release.ps1 checks). Shown at the top of the report.
-	static const string VERSION = "0.4.0";
+	static const string VERSION = "0.5.0";
 	static const string DIR = "$profile:AFHiveMind";
 	static const string CONFIG_PATH = "$profile:AFHiveMind/config.json";
 	static const string BRAIN_PATH = "$profile:AFHiveMind/brain.json";
@@ -137,6 +137,15 @@ class AFHM_Config
 	float BountyRareShareMax = 0.5;
 	ref array<string> BountyCommon = {"BandageDressing", "Morphine", "Epinephrine", "AmmoBox_556x45_20Rnd", "AmmoBox_762x39_20Rnd", "AmmoBox_762x54_20Rnd", "AmmoBox_9x19_25rnd", "Mag_STANAG_30Rnd", "Mag_AKM_30Rnd"};
 	ref array<string> BountyRare = {"NVGoggles", "Rangefinder", "ACOGOptic", "PSO1Optic", "PersonalRadio", "SalineBagIV", "Mag_STANAG_60Rnd", "PlateCarrierVest"};
+
+	// Announcements: an Expansion notification when the threat level (1-10, 5 = as configured)
+	// changes, for the whole map or for an area players farm (named after the nearest town).
+	// NotifyPlayers false sends them to the admins listed above only. NotifyAreasMax caps the
+	// area announcements per learning step; 0 announces the whole map only.
+	bool Notify = true;
+	bool NotifyPlayers = true;
+	int NotifyAreasMax = 2;
+	float NotifySeconds = 12;
 };
 
 class AFHM_ZoneStats
@@ -195,6 +204,12 @@ class AFHM_Brain
 	// What it concluded at the last evolve step, in plain words.
 	ref array<string> Insights = new array<string>;
 
+	// What players were last told: the map's difficulty, and each announced area's (by zone).
+	// Below 0 = nothing announced yet; the first look only records, so a fresh install or an
+	// update does not open with a burst of notifications.
+	float AnnouncedDifficulty = -1;
+	ref map<string, float> AnnouncedAreas = new map<string, float>;
+
 	// A hand-edited or older file may miss parts.
 	void Validate()
 	{
@@ -210,6 +225,8 @@ class AFHM_Brain
 			Players = new map<string, ref AFHM_PlayerStats>;
 		if (!Insights)
 			Insights = new array<string>;
+		if (!AnnouncedAreas)
+			AnnouncedAreas = new map<string, float>;
 		Difficulty = Math.Clamp(Difficulty, 0, 1);
 		Version = AFHM_Const.BRAIN_VERSION;
 	}

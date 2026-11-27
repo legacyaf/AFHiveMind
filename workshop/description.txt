@@ -21,6 +21,7 @@ No wallhacks, no aimbots, no knowledge of where players are. HiveMind turns the 
 [*][b]Range counter[/b]: if your players mostly snipe, bots flank wider and up to 40% of new patrol bots carry scoped rifles. Snipers are also hunted down from further away. If they mostly rush, bots push straight in and up to 40% carry automatics. Bots keep their faction's clothes and gear; only the weapon changes.
 [*][b]Night counter[/b]: bots without night vision are nearly blind at night. If many fights happen after dark, up to half of new patrol bots get NVGs and switch them on at dusk. The goggles are removed when the bot dies, so they never become loot.
 [*][b]Bounty loot[/b]: harder bots may drop one extra item when a player kills them (up to 75% chance), from a common list (medical, ammo, magazines) or a rare one (NVG, rangefinder, scopes, plate carrier). Tougher bots, better rewards.
+[*][b]Threat level notifications[/b]: when the bots change, an Expansion notification tells everyone the new threat level (1-10), whether it's the whole map or an area (named after the nearest town), and what changed: accuracy, damage, sight, hearing and patrol size.
 [/list]
 Every one of these limits is a setting in config.json.
 

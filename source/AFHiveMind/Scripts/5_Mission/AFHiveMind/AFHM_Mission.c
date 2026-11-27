@@ -20,48 +20,43 @@ modded class MissionServer
 	}
 };
 
+// The F9 panel: the report as see-through bubbles on the right of the screen. It never takes the
+// mouse or the keyboard.
 class AFHM_Panel
 {
-	protected static const int LINES = 34;
-	protected static const int LINE_HEIGHT = 18;
-
+	protected static const float WIDTH = 540;
 	protected Widget m_Root;
-	protected ref array<TextWidget> m_Lines = new array<TextWidget>;
-
-	void AFHM_Panel()
-	{
-		m_Root = GetGame().GetWorkspace().CreateWidgets("AFHiveMind/GUI/layouts/afhm_panel.layout");
-		if (!m_Root)
-			return;
-		for (int i = 0; i < LINES; i++)
-		{
-			TextWidget line = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets("AFHiveMind/GUI/layouts/afhm_line.layout", m_Root));
-			if (!line)
-				continue;
-			line.SetPos(12, 10 + i * LINE_HEIGHT);
-			m_Lines.Insert(line);
-		}
-		m_Root.SetSize(660, 20 + LINES * LINE_HEIGHT);
-	}
+	protected ref AFHM_ReportView m_View;
 
 	void ~AFHM_Panel()
 	{
+		m_View = null;
 		if (m_Root)
 			m_Root.Unlink();
 	}
 
-	void SetRows(array<string> rows)
+	void SetRows(array<string> items)
 	{
-		for (int i = 0; i < m_Lines.Count(); i++)
-		{
-			string row = "";
-			if (rows && i < rows.Count())
-				row = rows[i];
-			m_Lines[i].SetText(row);
-		}
+		m_View = null;
+		if (m_Root)
+			m_Root.Unlink();
+		int screenW;
+		int screenH;
+		GetScreenSize(screenW, screenH);
+		// Stops above the game's status icons at the bottom of the screen.
+		float maxH = Math.Max(screenH - 180, 300);
+
+		// On the right: Expansion shows its notifications in the top-left corner.
+		m_Root = AFHM_Ui.Frame(null, Math.Max(screenW - WIDTH - 20, 0), 80, WIDTH, maxH);
+		if (!m_Root)
+			return;
+		m_View = new AFHM_ReportView();
+		float h = m_View.Layout(m_Root, items, WIDTH, maxH, false);
+		// The window first, so the report is drawn on top of it.
+		new AFHM_Bubble(m_Root, 0, 0, WIDTH, h, 22, AFHM_Ui.Rgba(22, 22, 24, 0.62));
+		m_View.Layout(m_Root, items, WIDTH, maxH, true);
 	}
 };
-
 class AFHM_Client
 {
 	// Asks the server for a fresh report; it arrives in AFHM_ClientState.
@@ -117,25 +112,29 @@ class AFHM_ControlsHandler extends ScriptedWidgetEventHandler
 	}
 };
 
-// The admin controls: the same report as the debug panel, with buttons under it. Opens with
-// the mouse cursor and the character's controls locked; Esc or Close shuts it.
+// The admin controls (F10): the report on the left, the buttons on the right, in one rounded
+// see-through window in the middle of the screen. Esc, or Close, shuts it.
 class AFHM_ControlsMenu extends UIScriptedMenu
 {
-	protected static const int LINES = 30;
-	protected static const int LINE_HEIGHT = 18;
-	protected static const int BUTTON_WIDTH = 120;
-	protected static const int BUTTON_HEIGHT = 28;
-	protected static const int GAP = 8;
+	protected static const float REPORT_W = 540;
+	protected static const float SIDE_W = 250;
+	protected static const float MARGIN = 16;
 	protected static const string PREFIX = "AFHM_cmd_";
 	// Its own menu id, so the UI manager does not mistake it for another menu.
 	static const int MENU_ID = 874410010;
 
-	protected ref array<TextWidget> m_Lines = new array<TextWidget>;
 	protected ref AFHM_ControlsHandler m_Handler;
-	protected TextWidget m_ResetText;
+	protected ref map<string, ref AFHM_Button> m_Buttons = new map<string, ref AFHM_Button>;
+	protected ref AFHM_ReportView m_View;
+	protected ref AFHM_Bubble m_Window;
+	protected Widget m_ReportHolder;
+	protected TextWidget m_Note;
+	protected float m_NoteAge = 99;
+	protected float m_Height;
 	protected float m_ResetArmed;
 	protected float m_Refresh;
 	protected float m_Age;
+	protected bool m_EscWasDown;
 	protected int m_Stamp = -1;
 
 	override int GetID()
@@ -145,89 +144,126 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 
 	override Widget Init()
 	{
-		layoutRoot = GetGame().GetWorkspace().CreateWidgets("AFHiveMind/GUI/layouts/afhm_controls.layout");
-		if (!layoutRoot)
-		{
-			Print("[AFHiveMind] admin controls: could not load afhm_controls.layout");
-			return null;
-		}
-		m_Handler = new AFHM_ControlsHandler(this);
-		for (int i = 0; i < LINES; i++)
-		{
-			TextWidget line = TextWidget.Cast(GetGame().GetWorkspace().CreateWidgets("AFHiveMind/GUI/layouts/afhm_line.layout", layoutRoot));
-			if (!line)
-				continue;
-			line.SetPos(12, 10 + i * LINE_HEIGHT);
-			m_Lines.Insert(line);
-		}
-
-		int row1 = 20 + LINES * LINE_HEIGHT;
-		int row2 = row1 + BUTTON_HEIGHT + GAP;
-		AddButton("Freeze learning", "freeze", 0, row1);
-		AddButton("Resume learning", "resume", 1, row1);
-		AddButton("Evolve now", "evolve", 2, row1);
-		m_ResetText = AddButton("Reset brain", "reset", 3, row1);
-		AddButton("Close", "close", 4, row1);
-		AddButton("Pin difficulty", "pin", 0, row2);
-		AddButton("Pin -0.05", "pin_down", 1, row2);
-		AddButton("Pin +0.05", "pin_up", 2, row2);
-		AddButton("Unpin", "unpin", 3, row2);
-		int height = row2 + BUTTON_HEIGHT + 12;
-		layoutRoot.SetSize(660, height);
-		// In the middle of the screen, clear of the F9 panel's corner.
 		int screenW;
 		int screenH;
 		GetScreenSize(screenW, screenH);
-		layoutRoot.SetPos(Math.Max((screenW - 660) / 2, 0), Math.Max((screenH - height) / 2, 0));
+		float width = MARGIN + REPORT_W + MARGIN + SIDE_W + MARGIN;
+		m_Height = Math.Min(screenH - 60, 860);
+
+		layoutRoot = AFHM_Ui.Frame(null, Math.Max((screenW - width) / 2, 0), Math.Max((screenH - m_Height) / 2, 0), width, m_Height);
+		if (!layoutRoot)
+		{
+			Print("[AFHiveMind] admin controls: could not create the window");
+			return null;
+		}
+		m_Handler = new AFHM_ControlsHandler(this);
+
+		// Back to front: the window, the report's place, the side panel, the buttons.
+		m_Window = new AFHM_Bubble(layoutRoot, 0, 0, width, m_Height, 26, AFHM_Ui.Rgba(22, 22, 24, 0.72));
+		m_ReportHolder = AFHM_Ui.Frame(layoutRoot, MARGIN, 0, REPORT_W, m_Height);
+		float sx = MARGIN + REPORT_W + MARGIN;
+		new AFHM_Bubble(layoutRoot, sx, MARGIN, SIDE_W, m_Height - 2 * MARGIN, 20, AFHM_Ui.Rgba(44, 44, 46, 0.62));
+
+		int label = ARGB(255, 142, 142, 147);
+		float bx = sx + 14;
+		float bw = SIDE_W - 28;
+		float y = MARGIN + 14;
+		AFHM_Ui.Text(layoutRoot, "Controls", bx, y, bw, 28, 22, ARGB(255, 255, 255, 255));
+		y += 40;
+
+		AFHM_Ui.Text(layoutRoot, "LEARNING", bx + 6, y, bw, 18, 12, label);
+		y += 22;
+		AddButton("freeze", "Freeze learning", bx, y, bw, "grey");
+		y += 42;
+		AddButton("resume", "Resume learning", bx, y, bw, "grey");
+		y += 42;
+		AddButton("evolve", "Run a learning step now", bx, y, bw, "blue");
+		y += 54;
+
+		AFHM_Ui.Text(layoutRoot, "DIFFICULTY", bx + 6, y, bw, 18, 12, label);
+		y += 22;
+		AddButton("pin", "Pin the current level", bx, y, bw, "blue");
+		y += 42;
+		float half = (bw - 8) / 2;
+		AddButton("pin_down", "Easier  -0.05", bx, y, half, "grey");
+		AddButton("pin_up", "Harder  +0.05", bx + half + 8, y, half, "grey");
+		y += 42;
+		AddButton("unpin", "Unpin (learn again)", bx, y, bw, "grey");
+		y += 54;
+
+		AFHM_Ui.Text(layoutRoot, "DANGER ZONE", bx + 6, y, bw, 18, 12, label);
+		y += 22;
+		AddButton("reset", "Reset brain", bx, y, bw, "red");
+		y += 50;
+
+		m_Note = AFHM_Ui.Text(layoutRoot, "", bx, y, bw, 40, 13, ARGB(255, 174, 174, 178), 1);
+
+		AddButton("close", "Close   (Esc)", bx, m_Height - MARGIN - 14 - 34, bw, "grey");
 
 		// Show the last report at once, if there is one, while a fresh one is asked for.
+		m_View = new AFHM_ReportView();
 		if (AFHM_ClientState.s_Report.Count() > 0)
 		{
-			SetRows(AFHM_ClientState.s_Report);
+			ShowReport(AFHM_ClientState.s_Report);
 		}
 		else
 		{
 			array<string> waiting = new array<string>;
-			waiting.Insert("AF HiveMind: asking the server...");
-			SetRows(waiting);
+			waiting.Insert("H|AF HiveMind");
+			waiting.Insert("I|Asking the server...");
+			ShowReport(waiting);
 		}
 		m_Stamp = AFHM_ClientState.s_Stamp;
 		AFHM_Client.RequestReport();
 		m_Refresh = 3;
+
+		// Fade in.
+		layoutRoot.SetAlpha(0);
 		return layoutRoot;
 	}
 
-	// Returns the button's label so it can be changed later.
-	protected TextWidget AddButton(string label, string cmd, int column, int top)
+	protected void AddButton(string cmd, string label, float x, float y, float w, string style)
 	{
-		Widget button = GetGame().GetWorkspace().CreateWidgets("AFHiveMind/GUI/layouts/afhm_button.layout", layoutRoot);
-		if (!button)
-			return null;
-		button.SetName(PREFIX + cmd);
-		button.SetPos(12 + column * (BUTTON_WIDTH + GAP), top);
-		button.SetHandler(m_Handler);
-		TextWidget text = TextWidget.Cast(button.FindAnyWidget("AFHM_ButtonText"));
-		if (text)
-			text.SetText(label);
-		return text;
+		int r = 72;
+		int g = 72;
+		int b = 74;
+		float a = 0.9;
+		if (style == "blue")
+		{
+			r = 10;
+			g = 132;
+			b = 255;
+		}
+		else if (style == "red")
+		{
+			r = 255;
+			g = 69;
+			b = 58;
+		}
+		m_Buttons.Insert(cmd, new AFHM_Button(layoutRoot, PREFIX + cmd, label, x, y, w, 34, r, g, b, a, m_Handler));
 	}
 
-	protected void SetRows(array<string> rows)
+	protected void ShowReport(array<string> items)
 	{
-		for (int i = 0; i < m_Lines.Count(); i++)
-		{
-			string row = "";
-			if (rows && i < rows.Count())
-				row = rows[i];
-			m_Lines[i].SetText(row);
-		}
+		if (m_View && m_ReportHolder)
+			m_View.Layout(m_ReportHolder, items, REPORT_W, m_Height, true);
+	}
+
+	protected void Note(string text)
+	{
+		if (!m_Note)
+			return;
+		m_Note.SetText(text);
+		m_NoteAge = 0;
+		m_Note.SetAlpha(1);
 	}
 
 	protected void Disarm()
 	{
 		m_ResetArmed = 0;
-		if (m_ResetText)
-			m_ResetText.SetText("Reset brain");
+		AFHM_Button reset = m_Buttons.Get("reset");
+		if (reset)
+			reset.SetLabel("Reset brain");
 	}
 
 	override void OnShow()
@@ -256,6 +292,9 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		if (name.IndexOf(PREFIX) != 0)
 			return false;
 		string cmd = name.Substring(PREFIX.Length(), name.Length() - PREFIX.Length());
+		AFHM_Button button = m_Buttons.Get(cmd);
+		if (button)
+			button.Flash();
 
 		if (cmd == "close")
 		{
@@ -266,26 +305,47 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		if (cmd == "reset" && m_ResetArmed <= 0)
 		{
 			m_ResetArmed = 5;
-			if (m_ResetText)
-				m_ResetText.SetText("Click to confirm");
+			if (button)
+				button.SetLabel("Click again to reset");
+			Note("Reset wipes what it learned. The old brain is kept as a backup.");
 			return true;
 		}
 		Disarm();
 		AFHM_Client.SendCommand(cmd);
+		Note(Describe(cmd));
 		return true;
+	}
+
+	protected static string Describe(string cmd)
+	{
+		if (cmd == "freeze")
+			return "Learning frozen.";
+		if (cmd == "resume")
+			return "Learning resumed.";
+		if (cmd == "evolve")
+			return "Learning step done.";
+		if (cmd == "pin")
+			return "Difficulty pinned.";
+		if (cmd == "pin_down")
+			return "Pinned 0.05 easier.";
+		if (cmd == "pin_up")
+			return "Pinned 0.05 harder.";
+		if (cmd == "unpin")
+			return "Unpinned: it learns again.";
+		if (cmd == "reset")
+			return "Brain reset.";
+		return "Sent.";
 	}
 
 	bool AFHM_Highlight(Widget w, bool on)
 	{
 		if (!w || w.GetName().IndexOf(PREFIX) != 0)
 			return false;
-		Widget bg = w.FindAnyWidget("AFHM_ButtonBg");
-		if (!bg)
+		string name = w.GetName();
+		AFHM_Button button = m_Buttons.Get(name.Substring(PREFIX.Length(), name.Length() - PREFIX.Length()));
+		if (!button)
 			return false;
-		if (on)
-			bg.SetColor(ARGB(255, 90, 90, 90));
-		else
-			bg.SetColor(ARGB(255, 51, 51, 51));
+		button.SetHover(on);
 		return true;
 	}
 
@@ -293,19 +353,41 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	{
 		super.Update(timeslice);
 		m_Age += timeslice;
-		// Skip the first moments, so the key press that opened the menu cannot close it.
-		// The game may already close the top menu on Esc itself: only close if still on top.
-		if (m_Age > 0.3 && GetUApi().GetInputByID(UAUIBack).LocalPress() && GetGame().GetUIManager().GetMenu() == this)
+
+		if (layoutRoot && m_Age < 0.5)
+			layoutRoot.SetAlpha(Math.Clamp(m_Age / 0.18, 0, 1));
+
+		// Esc closes it. Read the key itself: the game's own "back" input is blocked while the
+		// menu holds the controls. The first moments are skipped, so the key that opened the
+		// menu cannot close it, and the pause menu is kept from opening on the same press.
+		bool escDown = KeyState(KeyCode.KC_ESCAPE) != 0;
+		bool escPressed = escDown && !m_EscWasDown;
+		m_EscWasDown = escDown;
+		if (m_Age > 0.3 && (escPressed || GetUApi().GetInputByID(UAUIBack).LocalPress()))
 		{
-			Close();
+			ClearKey(KeyCode.KC_ESCAPE);
+			GetUApi().GetInputByID(UAUIMenu).Supress();
+			GetUApi().GetInputByID(UAUIBack).Supress();
+			if (GetGame().GetUIManager().GetMenu() == this)
+				Close();
 			return;
 		}
+
+		foreach (string cmd, AFHM_Button button: m_Buttons)
+			button.Update(timeslice);
 
 		if (m_ResetArmed > 0)
 		{
 			m_ResetArmed -= timeslice;
 			if (m_ResetArmed <= 0)
 				Disarm();
+		}
+
+		if (m_Note && m_NoteAge < 99)
+		{
+			m_NoteAge += timeslice;
+			if (m_NoteAge > 3)
+				m_Note.SetAlpha(Math.Clamp(1 - (m_NoteAge - 3) / 0.6, 0, 1));
 		}
 
 		m_Refresh -= timeslice;
@@ -317,11 +399,10 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		if (m_Stamp != AFHM_ClientState.s_Stamp)
 		{
 			m_Stamp = AFHM_ClientState.s_Stamp;
-			SetRows(AFHM_ClientState.s_Report);
+			ShowReport(AFHM_ClientState.s_Report);
 		}
 	}
 };
-
 modded class MissionGameplay
 {
 	protected ref AFHM_Panel m_AFHM_Panel;
@@ -330,13 +411,35 @@ modded class MissionGameplay
 	protected float m_AFHM_Refresh;
 	protected int m_AFHM_Stamp = -1;
 
+	// Opens the admin controls unless another menu is open. Returns whether it opened.
+	bool AFHM_OpenControls()
+	{
+		UIScriptedMenu open = GetGame().GetUIManager().GetMenu();
+		if (open)
+		{
+			Print("[AFHiveMind] F10: another menu is open (" + open.ClassName() + "), not opening the admin controls");
+			return false;
+		}
+		AFHM_ShowPanel(false);
+		m_AFHM_Controls = new AFHM_ControlsMenu();
+		GetGame().GetUIManager().ShowScriptedMenu(m_AFHM_Controls, null);
+		Print("[AFHiveMind] F10: admin controls opened");
+		return true;
+	}
+
+	bool AFHM_ControlsOpen()
+	{
+		return m_AFHM_Controls && GetGame().GetUIManager().GetMenu() == m_AFHM_Controls;
+	}
+
 	void AFHM_ShowPanel(bool show)
 	{
 		if (show && !m_AFHM_Panel)
 		{
 			m_AFHM_Panel = new AFHM_Panel();
 			array<string> waiting = new array<string>;
-			waiting.Insert("AF HiveMind: asking the server...");
+			waiting.Insert("H|AF HiveMind");
+			waiting.Insert("I|Asking the server...");
 			m_AFHM_Panel.SetRows(waiting);
 			m_AFHM_Refresh = 0;
 			m_AFHM_Stamp = AFHM_ClientState.s_Stamp;
@@ -359,18 +462,7 @@ modded class MissionGameplay
 		if (controls && controls.LocalPress())
 		{
 			Print("[AFHiveMind] F10 pressed");
-			UIScriptedMenu open = GetGame().GetUIManager().GetMenu();
-			if (open)
-			{
-				Print("[AFHiveMind] F10: another menu is open (" + open.ClassName() + "), not opening the admin controls");
-			}
-			else
-			{
-				AFHM_ShowPanel(false);
-				m_AFHM_Controls = new AFHM_ControlsMenu();
-				GetGame().GetUIManager().ShowScriptedMenu(m_AFHM_Controls, null);
-				Print("[AFHiveMind] F10: admin controls opened");
-			}
+			AFHM_OpenControls();
 		}
 
 		// The F9 panel stays closed while the admin controls are open.

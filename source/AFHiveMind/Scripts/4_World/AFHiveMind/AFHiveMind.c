@@ -263,6 +263,7 @@ class AFHiveMind
 		if (Math.AbsFloat(m_Brain.Difficulty - before) > 0.004)
 			AFHM_Util.Log("generation " + m_Brain.Generation.ToString() + ": players win " + AFHM_Util.Pct(winRate) + " of " + AFHM_Util.F(counted, 1) + " counted fights from " + players.ToString() + " players (target " + AFHM_Util.Pct(m_Config.TargetPlayerWinRate) + "), difficulty " + AFHM_Util.F(before) + " -> " + AFHM_Util.F(m_Brain.Difficulty));
 
+		AFHM_Announcer.Check(this);
 		Save();
 	}
 
@@ -974,7 +975,7 @@ class AFHiveMind
 		{
 			AFHM_ZoneStats hot = m_Brain.Zones.Get(hotKey);
 			float hotOffset = Math.Clamp(WinRate(hot.BotsKilled, hot.PlayersKilled) - m_Config.TargetPlayerWinRate, -m_Config.ZoneOffsetMax, m_Config.ZoneOffsetMax);
-			string hotLine = "Bots die most around " + ZoneLabel(hotKey) + " (" + AFHM_Util.F(hot.BotsKilled, 1) + " lost, " + AFHM_Util.F(hot.PlayersKilled, 1) + " players killed): local difficulty " + Signed(hotOffset);
+			string hotLine = "Bots die most around " + AFHM_Announcer.PlaceName(ZoneCentre(hotKey)) + " (" + AFHM_Util.F(hot.BotsKilled, 1) + " lost, " + AFHM_Util.F(hot.PlayersKilled, 1) + " players killed): local difficulty " + Signed(hotOffset);
 			float hotStrength = HotZoneStrength(ZoneCentre(hotKey));
 			if (m_Config.HotZoneExtraBots && hotStrength > 0)
 				hotLine += ", patrols there up to " + AFHM_Util.Pct(m_Config.HotZoneExtraShareMax * hotStrength) + " bigger (at most +" + m_Config.HotZoneExtraBotsMax.ToString() + " bots)";
@@ -1008,7 +1009,7 @@ class AFHiveMind
 		string pinned = "";
 		if (m_Config.PinnedDifficulty >= 0)
 			pinned = " PINNED";
-		r.Insert("Tuning " + state + " | difficulty " + AFHM_Util.F(m_Brain.Difficulty) + pinned + " (0 easiest, 0.5 as configured, 1 hardest)");
+		r.Insert("Tuning " + state + " | threat level " + AFHM_Announcer.Level(m_Brain.Difficulty).ToString() + "/10 (difficulty " + AFHM_Util.F(m_Brain.Difficulty) + pinned + "; 5 = as configured)");
 		r.Insert("Remembered: " + AFHM_Util.F(m_Brain.BotsKilledByPlayers, 1) + " bots lost, " + AFHM_Util.F(m_Brain.PlayersKilledByBots, 1) + " players killed | lifetime " + m_Brain.TotalBotsKilled.ToString() + " / " + m_Brain.TotalPlayersKilled.ToString() + " | bots tuned " + m_Brain.TotalBotsTuned.ToString());
 		r.Insert("New fights since the last evolve step: " + AFHM_Util.F(m_NewEvidence, 0) + " | next step in " + AFHM_Util.F(Math.Max(m_Config.EvolveIntervalSeconds - (GetGame().GetTickTime() - m_LastEvolve), 0), 0) + " s");
 		r.Insert(" ");
@@ -1102,10 +1103,11 @@ class AFHiveMind
 			return;
 		}
 
+		AFHM_Util.Log("admin " + name + ": " + done);
 		SaveConfig();
 		RefreshInsights();
+		AFHM_Announcer.Check(this);
 		Save();
-		AFHM_Util.Log("admin " + name + ": " + done);
 	}
 
 	protected float PinAt(float value)
@@ -1131,6 +1133,11 @@ class AFHiveMind
 
 		AFHM_Brain fresh = new AFHM_Brain();
 		fresh.Validate();
+		// Keep what players were last told, so they hear that the bots went back to normal.
+		fresh.AnnouncedDifficulty = m_Brain.AnnouncedDifficulty;
+		array<string> told = m_Brain.AnnouncedAreas.GetKeyArray();
+		foreach (string toldKey: told)
+			fresh.AnnouncedAreas.Set(toldKey, m_Brain.AnnouncedAreas.Get(toldKey));
 		fresh.LastFadeTimestamp = ExpansionStatic.GetTimestamp(true);
 		if (m_Config.PinnedDifficulty >= 0)
 			fresh.Difficulty = Math.Clamp(m_Config.PinnedDifficulty, 0, 1);
@@ -1161,5 +1168,122 @@ class AFHiveMind
 			lines.Insert(rest);
 		}
 		return lines;
+	}
+
+	// ------------------------------------------------------------------ panel items
+
+	// The report for the F9 panel and the F10 admin controls, as labelled items the client lays
+	// out in sections ("tag|text|text"):
+	//   H  title             V  version            L  threat level (1-10)
+	//   C  status chip|tone  K  key|value          T  section title
+	//   I  item text         P  patrol|place|details
+	// Each item is short: DayZ drops RPCs that carry long strings.
+	array<string> PanelItems()
+	{
+		array<string> r = new array<string>;
+		r.Insert("H|AF HiveMind");
+		r.Insert("V|" + AFHM_Const.VERSION);
+		r.Insert("L|" + AFHM_Announcer.Level(m_Brain.Difficulty).ToString());
+
+		if (!m_Config.Enabled)
+			r.Insert("C|Switched off|bad");
+		else if (m_Config.Frozen)
+			r.Insert("C|Learning frozen|warn");
+		else
+			r.Insert("C|Learning|good");
+		if (m_Config.PinnedDifficulty >= 0)
+			r.Insert("C|Pinned at " + AFHM_Util.F(m_Config.PinnedDifficulty) + "|warn");
+		if (m_Config.Notify)
+			r.Insert("C|Notifications on|info");
+
+		float wins;
+		float losses;
+		int players;
+		float counted = CountedFights(wins, losses, players);
+		r.Insert("K|Difficulty|" + AFHM_Util.F(m_Brain.Difficulty) + "  (0.5 = as configured)");
+		r.Insert("K|Players win|" + AFHM_Util.Pct(WinRate(wins, losses)) + " of fights  (target " + AFHM_Util.Pct(m_Config.TargetPlayerWinRate) + ")");
+		r.Insert("K|Fights counted|" + AFHM_Util.F(counted, 1) + " from " + players.ToString() + " players  (moves from " + AFHM_Util.F(m_Config.DifficultyMinFights, 0) + ")");
+		r.Insert("K|Remembered|" + AFHM_Util.F(m_Brain.BotsKilledByPlayers, 1) + " bots lost, " + AFHM_Util.F(m_Brain.PlayersKilledByBots, 1) + " players killed");
+		r.Insert("K|Lifetime|" + m_Brain.TotalBotsKilled.ToString() + " bots lost, " + m_Brain.TotalPlayersKilled.ToString() + " players killed, " + m_Brain.TotalBotsTuned.ToString() + " bots tuned");
+		r.Insert("K|Next step|in " + AFHM_Util.F(Math.Max(m_Config.EvolveIntervalSeconds - (GetGame().GetTickTime() - m_LastEvolve), 0), 0) + " s  (generation " + m_Brain.Generation.ToString() + ", " + AFHM_Util.F(m_NewEvidence, 0) + " new fights)");
+
+		// What it learned, sorted into topics.
+		array<string> topics = {"Difficulty", "How players fight", "Hot zones", "Time of day", "Loot"};
+		map<string, ref array<string>> byTopic = new map<string, ref array<string>>;
+		foreach (string topicName: topics)
+			byTopic.Insert(topicName, new array<string>);
+		foreach (string insight: m_Brain.Insights)
+			byTopic.Get(TopicOf(insight)).Insert(insight);
+		if (m_Brain.Insights.Count() == 0)
+		{
+			r.Insert("T|What it learned");
+			r.Insert("I|Nothing yet: the first learning step has not run.");
+		}
+		foreach (string topic: topics)
+		{
+			array<string> said = byTopic.Get(topic);
+			if (said.Count() == 0)
+				continue;
+			r.Insert("T|" + topic);
+			foreach (string line: said)
+				r.Insert("I|" + Shorten(line, 300));
+		}
+
+		r.Insert("T|Latest patrols");
+		if (m_Recent.Count() == 0)
+			r.Insert("I|None since the server started.");
+		for (int i = m_Recent.Count() - 1; i >= 0; i--)
+		{
+			// "Alpha @ 4750 / 10250: difficulty ..." -> patrol, nearest town, details.
+			string recent = m_Recent[i];
+			int at = recent.IndexOf(" @ ");
+			int colon = recent.IndexOf(": ");
+			if (at < 0 || colon < at)
+			{
+				r.Insert("I|" + Shorten(recent, 300));
+				continue;
+			}
+			string patrol = recent.Substring(0, at);
+			string coords = recent.Substring(at + 3, colon - at - 3);
+			string details = recent.Substring(colon + 2, recent.Length() - colon - 2);
+			r.Insert("P|" + patrol + "|" + PlaceOfCoords(coords) + "|" + Shorten(details, 260));
+		}
+		return r;
+	}
+
+	protected static string TopicOf(string insight)
+	{
+		string low = insight;
+		low.ToLower();
+		if (low.Contains("bounty"))
+			return "Loot";
+		if (low.Contains("night") || low.Contains(":00"))
+			return "Time of day";
+		if (low.Contains("die most") || low.Contains("zone"))
+			return "Hot zones";
+		if (low.Contains("kill from") || low.Contains("weapon") || low.Contains("headshot") || low.Contains("beyond") || low.Contains("snipe") || low.Contains("rush"))
+			return "How players fight";
+		return "Difficulty";
+	}
+
+	protected static string Shorten(string text, int most)
+	{
+		if (text.Length() <= most)
+			return text;
+		return text.Substring(0, most - 3) + "...";
+	}
+
+	// "4750 / 10250" -> the nearest town's name.
+	protected static string PlaceOfCoords(string coords)
+	{
+		array<string> parts = new array<string>;
+		coords.Split("/", parts);
+		if (parts.Count() != 2)
+			return coords;
+		string east = parts[0];
+		string north = parts[1];
+		east.Trim();
+		north.Trim();
+		return AFHM_Announcer.PlaceName(Vector(east.ToFloat(), 0, north.ToFloat()));
 	}
 };
