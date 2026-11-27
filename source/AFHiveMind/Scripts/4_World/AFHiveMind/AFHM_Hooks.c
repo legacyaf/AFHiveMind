@@ -5,6 +5,9 @@ modded class PlayerBase
 {
 	protected string m_AFHM_LastHitZone;
 	protected string m_AFHM_Profile;
+	// 0 = not checked yet, 1 = ordinary, 2 = quest giver or trader. The class never changes, and
+	// the check walks the config class tree, so it is done once per entity, not once per hit.
+	protected int m_AFHM_ServiceNPC;
 
 	string AFHM_GetLastHitZone()
 	{
@@ -27,7 +30,13 @@ modded class PlayerBase
 	// or not the Quests and Market mods are loaded.
 	bool AFHM_IsServiceNPC()
 	{
-		return IsKindOf("ExpansionQuestNPCAIBase") || IsKindOf("ExpansionTraderAIBase");
+		if (m_AFHM_ServiceNPC == 0)
+		{
+			m_AFHM_ServiceNPC = 1;
+			if (IsKindOf("ExpansionQuestNPCAIBase") || IsKindOf("ExpansionTraderAIBase"))
+				m_AFHM_ServiceNPC = 2;
+		}
+		return m_AFHM_ServiceNPC == 2;
 	}
 
 	// The player or bot holding (or being) the thing that did the damage; null for anything else.
@@ -96,6 +105,18 @@ modded class PlayerBase
 		rpc.Send(this, AFHM_Const.RPC_REPORT, true, to);
 	}
 
+	// The panel sends its requests on the player's own entity. An RPC aimed at another player's
+	// entity is not ours, so it is ignored (the answer would go to the wrong object).
+	protected bool AFHM_FromOwner(PlayerIdentity sender)
+	{
+		if (!GetGame().IsMultiplayer())
+			return true;
+		PlayerIdentity own = GetIdentity();
+		if (!sender || !own)
+			return false;
+		return sender.GetPlainId() == own.GetPlainId();
+	}
+
 	override void OnRPC(PlayerIdentity sender, int rpc_type, ParamsReadContext ctx)
 	{
 		super.OnRPC(sender, rpc_type, ctx);
@@ -105,14 +126,24 @@ modded class PlayerBase
 			if (!GetGame().IsServer())
 				return;
 			AFHiveMind hm = AFHiveMind.Get();
-			if (!hm)
+			if (!hm || !AFHM_FromOwner(sender))
+				return;
+			// A client may ask as often as it likes: extra requests are ignored.
+			if (!hm.RpcAllowed(sender, false))
 				return;
 			// Sent line by line: one long string does not survive the trip.
-			array<string> lines = new array<string>;
+			array<string> lines;
 			if (hm.IsAdmin(sender))
+			{
 				lines = hm.PanelItems();
+			}
 			else
-				lines.Insert("H|AF HiveMind"); lines.Insert("T|No access"); lines.Insert("I|You are not listed under Admins in config.json.");
+			{
+				lines = new array<string>;
+				lines.Insert("H|AF HiveMind");
+				lines.Insert("T|No access");
+				lines.Insert("I|You are not listed under Admins in config.json.");
+			}
 			AFHM_SendReport(sender, lines);
 		}
 		else if (rpc_type == AFHM_Const.RPC_COMMAND)
@@ -121,10 +152,18 @@ modded class PlayerBase
 			if (!GetGame().IsServer())
 				return;
 			AFHiveMind hmCmd = AFHiveMind.Get();
-			string cmd;
-			if (!hmCmd || !ctx.Read(cmd))
+			if (!hmCmd || !AFHM_FromOwner(sender))
 				return;
-			array<string> cmdLines = new array<string>;
+			// Throttled before anything is read or checked, so spam costs the server nothing.
+			if (!hmCmd.RpcAllowed(sender, true))
+				return;
+			string cmd;
+			if (!ctx.Read(cmd))
+				return;
+			// The longest real command is 8 characters: anything longer is not from the panel.
+			if (cmd.Length() > 16)
+				return;
+			array<string> cmdLines;
 			if (hmCmd.IsAdmin(sender))
 			{
 				hmCmd.AdminCommand(sender, cmd);
@@ -132,8 +171,12 @@ modded class PlayerBase
 			}
 			else
 			{
-				cmdLines.Insert("H|AF HiveMind"); cmdLines.Insert("T|No access"); cmdLines.Insert("I|You are not listed under Admins in config.json.");
-				AFHM_Util.Log("refused admin command '" + cmd + "' from a player not listed under Admins");
+				cmdLines = new array<string>;
+				cmdLines.Insert("H|AF HiveMind");
+				cmdLines.Insert("T|No access");
+				cmdLines.Insert("I|You are not listed under Admins in config.json.");
+				if (hmCmd.RefusalLogAllowed(sender))
+					AFHM_Util.Log("refused admin command '" + AFHM_Util.Clean(cmd, 16) + "' from " + hmCmd.WhoIs(sender) + ", who is not listed under Admins");
 			}
 			AFHM_SendReport(sender, cmdLines);
 		}
