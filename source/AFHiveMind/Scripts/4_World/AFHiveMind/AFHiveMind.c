@@ -1178,12 +1178,28 @@ class AFHiveMind
 			ResetBrain();
 			done = "reset the brain (the old one is in AFHiveMind\\backups)";
 		}
+		else if (cmd == "reload")
+		{
+			LoadConfig();
+			done = "reloaded config.json";
+		}
+		else if (cmd.IndexOf("zreset:") == 0)
+		{
+			// Forget one area: its bots go back to the map's level, and players near it are told.
+			string zoneKey = cmd.Substring(7, cmd.Length() - 7);
+			if (!m_Brain.Zones.Contains(zoneKey))
+				return;
+			string zonePlace = AFHM_Announcer.PlaceName(ZoneCentre(zoneKey));
+			m_Brain.Zones.Remove(zoneKey);
+			done = "reset the area around " + zonePlace + " (zone " + ZoneLabel(zoneKey) + ")";
+		}
 		else
 		{
 			return;
 		}
 
 		AFHM_Util.Log("admin " + name + ": " + done);
+		AFHM_Discord.AdminAction(this, name, done);
 		SaveConfig();
 		RefreshInsights();
 		Save();
@@ -1352,7 +1368,41 @@ class AFHiveMind
 			string details = recent.Substring(colon + 2, recent.Length() - colon - 2);
 			r.Insert("P|" + Shorten(patrol, 32) + "|" + Shorten(PlaceOfCoords(coords), 40) + "|" + Shorten(details, 215));
 		}
+		PanelZones(r);
 		return r;
+	}
+
+	// "Z|key|place|level|gap" for each area above or below the map, biggest gap first, for the
+	// hot-zone list (with a reset button each) in the admin controls.
+	protected void PanelZones(array<string> r)
+	{
+		array<string> zoneKeys = m_Brain.Zones.GetKeyArray();
+		array<string> picked = new array<string>;
+		array<int> gaps = new array<int>;
+		foreach (string zk: zoneKeys)
+		{
+			int g = AFHM_Announcer.AreaGap(this, zk);
+			if (g != 0)
+			{
+				picked.Insert(zk);
+				gaps.Insert(g);
+			}
+		}
+		int mapLevel = AFHM_Announcer.Level(m_Brain.Difficulty);
+		for (int n = 0; n < 6 && picked.Count() > 0; n++)
+		{
+			int best = 0;
+			for (int j = 1; j < picked.Count(); j++)
+			{
+				if (Math.AbsInt(gaps[j]) > Math.AbsInt(gaps[best]))
+					best = j;
+			}
+			string key = picked[best];
+			int level = AFHM_Announcer.Level(Math.Clamp(m_Brain.Difficulty + AFHM_Announcer.AreaOffset(this, key), 0, 1));
+			r.Insert("Z|" + key + "|" + Shorten(AFHM_Announcer.PlaceName(ZoneCentre(key)), 24) + "|" + level.ToString() + "|" + gaps[best].ToString() + "|" + mapLevel.ToString());
+			picked.Remove(best);
+			gaps.Remove(best);
+		}
 	}
 
 	protected static string TopicOf(string insight)

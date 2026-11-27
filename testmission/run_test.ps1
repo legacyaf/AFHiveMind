@@ -44,6 +44,36 @@ if ($Fresh) { Remove-Item (Join-Path $profiles 'AFHiveMind') -Recurse -Force -Co
 
 # DayZ on this PC is shared with other work: never close a game this script did not start.
 if (Get-Process DayZDiag_x64 -ErrorAction SilentlyContinue) { throw 'DayZDiag is already running (someone else may be using it). Not starting the test.' }
+# A stand-in for Discord: the mission points the webhook at 127.0.0.1:8765, and every post that
+# arrives is saved to captures\webhook.txt (only this machine can reach it).
+$hookFile = Join-Path $out 'webhook.txt'
+Remove-Item $hookFile -ErrorAction SilentlyContinue
+$hook = Start-Job -ArgumentList $hookFile -ScriptBlock {
+    param($file)
+    $l = New-Object System.Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 8765)
+    $l.Start()
+    $until = (Get-Date).AddSeconds(480)
+    while ((Get-Date) -lt $until) {
+        if (-not $l.Pending()) { Start-Sleep -Milliseconds 100; continue }
+        $c = $l.AcceptTcpClient(); $c.ReceiveTimeout = 3000
+        $s = $c.GetStream(); $buf = New-Object byte[] 65536; $got = 0; $text = ''
+        try {
+            do {
+                $n = $s.Read($buf, $got, $buf.Length - $got); $got += $n
+                $text = [Text.Encoding]::UTF8.GetString($buf, 0, $got)
+                $head = $text.IndexOf("`r`n`r`n")
+                $len = 0; if ($text -match '(?i)content-length:\s*(\d+)') { $len = [int]$Matches[1] }
+            } while ($n -gt 0 -and ($head -lt 0 -or $got - $head - 4 -lt $len))
+        } catch {}
+        $resp = [Text.Encoding]::ASCII.GetBytes("HTTP/1.1 204 No Content`r`nConnection: close`r`n`r`n")
+        try { $s.Write($resp, 0, $resp.Length) } catch {}
+        $c.Close()
+        $body = $text; $head = $text.IndexOf("`r`n`r`n"); if ($head -ge 0) { $body = $text.Substring($head + 4) }
+        $first = ($text -split "`r`n")[0]
+        Add-Content -LiteralPath $file -Value "$first | $body" -Encoding UTF8
+    }
+    $l.Stop()
+}
 $start = Get-Date
 $game = Start-Process -PassThru (Join-Path $dayz 'DayZDiag_x64.exe') -WorkingDirectory $dayz -ArgumentList @(
     """-mission=$here\AFHive.ChernarusPlus""", """-mod=$($mods -join ';')""", """-profiles=$profiles""",
@@ -127,6 +157,8 @@ $lines = @(($text -split "`r?`n" | Select-String '\[AFHive\]|\[AFHiveMind\]|ompi
 $lines
 "test finished: $done; pictures: $($seen.Count)"
 if (-not $game.HasExited) { Stop-Process -Id $game.Id -Force -Confirm:$false }
+Stop-Job $hook -ErrorAction SilentlyContinue; Remove-Job $hook -Force -ErrorAction SilentlyContinue
+if (Test-Path $hookFile) { Get-Content $hookFile | ForEach-Object { "webhook received: $_" } } else { 'webhook received: nothing' }
 
 # A clear verdict and exit code, so tools\release.ps1 can stop on a failure.
 $failed = @($lines | Where-Object { $_ -cmatch 'FAILED' -or $_ -match 'ompile error|Can.t compile' })

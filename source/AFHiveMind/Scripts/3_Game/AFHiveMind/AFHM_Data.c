@@ -148,6 +148,17 @@ class AFHM_Config
 	bool NotifyPlayers = true;
 	int NotifyAreasMax = 2;
 	float NotifySeconds = 12;
+	// Area announcements go only to players within this many metres of the area (admins always
+	// get them). 0 sends them to everyone.
+	float NotifyAreaRadius = 2000;
+
+	// Discord: paste a channel's webhook URL (Server Settings > Integrations > Webhooks) to post
+	// threat level changes and admin actions there. Empty = off. Keep the URL private.
+	string DiscordWebhookUrl = "";
+	string DiscordName = "AF HiveMind";
+	bool DiscordMapChanges = true;
+	bool DiscordAreaChanges = true;
+	bool DiscordAdminActions = true;
 
 	// The wording of the announcements. Placeholders, filled in when one is sent:
 	//   {level}   the new threat level (1-10)        {was}     the level players were last told

@@ -134,6 +134,8 @@ The buttons are grouped:
 | Difficulty | **Pin the current level** | Holds the difficulty at its current value. Fights are still learned from for tactics, zones and so on, but they no longer move the difficulty. |
 | | **Easier -1 / Harder +1** | Pins the difficulty one threat level lower or higher (for example 5/10 to 4/10). Players are told 20 seconds after your last click, once, for where you ended up. |
 | | **Unpin (learn again)** | Lets the difficulty learn again, starting from where it was pinned. |
+| Server | **Reload config.json** | Re-reads `config.json` without a restart, so changes to the wording, Discord and tuning settings take effect. |
+| Hot zones | **Reset** (one per area) | The areas currently above or below the map, with their level, toughest first (red above, green below). **Reset** forgets that one area: its bots go back to the map's level, and players near it are told 20 seconds later. |
 | Danger zone | **Reset brain** | Takes two clicks. Forgets everything and starts again from "as configured". The old brain is kept in `AFHiveMind\backups` as `reset_brain_<date>_<time>.json`. Settings, the freeze and the pin are kept. |
 
 A short note under the buttons confirms each press.
@@ -354,6 +356,21 @@ Change a value, save, and it applies at the next learning step, or at once after
 | `NotifyPlayers` | true | false: only the admins listed in `Admins` get them. |
 | `NotifyAreasMax` | 2 | Area announcements per learning step at most. 0: whole map only. |
 | `NotifySeconds` | 12 | How long each notification stays on screen. |
+| `NotifyAreaRadius` | 2000 | Area announcements go to players within this many metres of the area, and to admins wherever they are. 0: everyone. Whole-map announcements always go to everyone. |
+
+### Discord
+
+Paste a channel's webhook URL into `DiscordWebhookUrl` (in Discord: channel settings > Integrations > Webhooks > New Webhook > Copy Webhook URL) and the HiveMind posts there. Then press **Reload config.json** in F10, or restart. Keep the URL private: anyone who has it can post to that channel. The mod only uses it on the server, and never sends it to players or writes it to the log.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `DiscordWebhookUrl` | empty (off) | The webhook URL. It must start with `https://`. |
+| `DiscordName` | AF HiveMind | The name the posts appear under. |
+| `DiscordMapChanges` | true | Post whole-map threat level changes. |
+| `DiscordAreaChanges` | true | Post area announcements. |
+| `DiscordAdminActions` | true | Post every F10 button press, with the admin's name and Steam id. This is an audit trail for your staff channel. |
+
+Posts never ping anyone, even if a player's name contains @everyone. If posts don't arrive, `hivemind.log` says why ("discord: ...").
 
 **The wording is yours to change.** Every announcement is built from a template in `config.json`. Edit the text, restart the server, and the next announcement uses it.
 

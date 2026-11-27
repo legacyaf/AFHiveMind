@@ -5,6 +5,11 @@
 [*][b]No more wrong "tougher" messages[/b]: an area is now announced only when its own adjustment changes, not when the map's level moves. Before, lowering the map could announce an area as tougher. Red/green now follows whether that area got tougher or easier than players were last told.
 [*][b]No spam from admin clicks[/b]: F10 changes are announced 20 seconds after the last click, once, for where you ended up. Clicking Harder then Easier announces nothing.
 [*][b]Notification wording is now in config.json[/b]: titles, texts, the words for each figure, icons and colours, with placeholders such as {level}, {place} and {changes}. Empty a text to turn that kind of message off. See the Server Guide.
+[*][b]Area notifications go to nearby players only[/b] (NotifyAreaRadius, 2000 m by default; admins always get them). Whole-map ones still go to everyone.
+[*][b]Discord[/b]: set DiscordWebhookUrl and the HiveMind posts threat level changes and every F10 button press (who and what) to that channel. Posts never ping anyone.
+[*][b]F10: Reload config.json[/b] applies config changes without a restart.
+[*][b]F10: Hot zones list[/b]: every area above or below the map, with its level and a Reset button to put just that area back to the map's level.
+[*][b]Security and performance[/b]: panel requests and admin buttons are rate-limited per player, player names are cleaned before they reach files, the report or the log, admins no longer see a stray "No access" note at the bottom of their report, and a few checks that ran on every hit are now done once.
 [*][b]Move the F10 window[/b] by dragging its top edge. It reopens where you left it.
 [*]F9/F10 report: a section title no longer sits alone at the bottom when the panel runs out of room.
 [*]The first start after updating records the current state again without announcing anything.

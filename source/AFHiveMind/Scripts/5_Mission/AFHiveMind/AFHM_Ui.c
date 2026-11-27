@@ -290,6 +290,8 @@ class AFHM_ReportView
 				chips.Insert(rest);
 			else if (tag == "K")
 				keys.Insert(rest);
+			else if (tag == "Z")
+				continue; // hot-zone rows: shown by the admin controls' side panel, not here
 			else
 				body.Insert(tag + "|" + rest);
 		}

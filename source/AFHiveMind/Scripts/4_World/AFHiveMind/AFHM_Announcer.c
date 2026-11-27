@@ -13,6 +13,9 @@ class AFHM_Announcer
 	protected static ref array<ref ExpansionLocation> s_Towns;
 	// The last announcement sent, title and text (read by the test mission).
 	static string s_LastSent;
+	// The last ten announcements, and how many players got the last one (-1 = everyone).
+	static ref array<string> s_Sent = new array<string>;
+	static int s_LastRecipients;
 	protected static ref map<string, string> s_PlaceCache = new map<string, string>;
 
 	// How AnnouncedAreas is measured (AFHM_Brain.AnnounceFormat). 0.5.0 stored gaps measured
@@ -198,7 +201,7 @@ class AFHM_Announcer
 		values.Set("changes", AFHM_Announcer.Scales(hm, Math.Clamp(mapD + AFHM_Announcer.AreaOffset(hm, key), 0, 1)));
 		values.Set("patrols", AFHM_Announcer.Fill(patrols, values));
 		// Red when this area got tougher than players were last told, green when it eased off.
-		AFHM_Announcer.Send(hm, AFHM_Announcer.Fill(cfg.NotifyTitleArea, values), AFHM_Announcer.Fill(text, values), gap > lastGap);
+		AFHM_Announcer.Send(hm, AFHM_Announcer.Fill(cfg.NotifyTitleArea, values), AFHM_Announcer.Fill(text, values), gap > lastGap, true, centre);
 	}
 
 	// Replaces each {name} in the template with its value, and tidies the spaces an empty
@@ -338,7 +341,8 @@ class AFHM_Announcer
 		return true;
 	}
 
-	protected static void Send(AFHiveMind hm, string title, string text, bool tougher)
+	// area true: an area announcement centred on pos, for players near it (NotifyAreaRadius).
+	protected static void Send(AFHiveMind hm, string title, string text, bool tougher, bool area = false, vector pos = "0 0 0")
 	{
 		// DayZ drops RPCs with long strings, and long notifications cover the screen.
 		if (text.Length() > 250)
@@ -355,22 +359,55 @@ class AFHM_Announcer
 			color = AFHM_Announcer.Colour(cfg.NotifyColorTougher, ARGB(255, 220, 60, 60));
 		}
 
-		if (hm.m_Config.NotifyPlayers)
+		float radius = cfg.NotifyAreaRadius;
+		bool everyone = cfg.NotifyPlayers && (!area || radius <= 0);
+		s_LastRecipients = -1;
+		if (everyone)
 		{
-			ExpansionNotification(title, text, icon, color, hm.m_Config.NotifySeconds).Create();
+			ExpansionNotification(title, text, icon, color, cfg.NotifySeconds).Create();
 		}
 		else
 		{
+			// Admins always; other players only when announcements are for players and they are
+			// near the area.
+			s_LastRecipients = 0;
+			float radiusSq = radius * radius;
 			array<Man> players = new array<Man>;
 			GetGame().GetPlayers(players);
+			bool online = GetGame().IsMultiplayer();
 			foreach (Man man: players)
 			{
+				// Bots can be in the player list; offline, the one player has no identity.
+				PlayerBase pb = PlayerBase.Cast(man);
+				if (!pb || pb.IsAI())
+					continue;
 				PlayerIdentity identity = man.GetIdentity();
-				if (identity && hm.IsAdmin(identity))
-					ExpansionNotification(title, text, icon, color, hm.m_Config.NotifySeconds).Create(identity);
+				if (!identity && online)
+					continue;
+				bool send = false;
+				if (identity)
+					send = hm.IsAdmin(identity);
+				if (!send && cfg.NotifyPlayers && area)
+				{
+					vector at = man.GetPosition();
+					float dx = at[0] - pos[0];
+					float dz = at[2] - pos[2];
+					send = dx * dx + dz * dz <= radiusSq;
+				}
+				if (!send)
+					continue;
+				if (identity)
+					ExpansionNotification(title, text, icon, color, cfg.NotifySeconds).Create(identity);
+				else
+					ExpansionNotification(title, text, icon, color, cfg.NotifySeconds).Create();
+				s_LastRecipients++;
 			}
 		}
 		s_LastSent = title + " | " + text;
+		s_Sent.Insert(s_LastSent);
+		if (s_Sent.Count() > 10)
+			s_Sent.Remove(0);
 		AFHM_Util.Log("announced: " + s_LastSent);
+		AFHM_Discord.Announcement(hm, title, text, area);
 	}
 };

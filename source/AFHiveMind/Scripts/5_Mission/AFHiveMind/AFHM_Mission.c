@@ -146,6 +146,14 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	protected bool m_MouseWasDown;
 	protected float m_GrabX;
 	protected float m_GrabY;
+	// The hot-zone list in the side panel.
+	protected static const float ZONE_ROW = 42;
+	protected Widget m_ZoneHolder;
+	protected float m_ZonesX;
+	protected float m_ZonesY;
+	protected float m_ZonesW;
+	protected int m_ZoneRowsMax;
+	protected string m_ZonesSig;
 
 	override int GetID()
 	{
@@ -211,14 +219,26 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		AddButton("unpin", "Unpin (learn again)", bx, y, bw, "grey");
 		y += 54;
 
-		AFHM_Ui.Text(layoutRoot, "DANGER ZONE", bx + 6, y, bw, 18, 12, label);
+		AFHM_Ui.Text(layoutRoot, "SERVER", bx + 6, y, bw, 18, 12, label);
 		y += 22;
-		AddButton("reset", "Reset brain", bx, y, bw, "red");
-		y += 50;
+		AddButton("reload", "Reload config.json", bx, y, bw, "grey");
+		y += 54;
 
-		m_Note = AFHM_Ui.Text(layoutRoot, "", bx, y, bw, 40, 13, ARGB(255, 174, 174, 178), 1);
+		// From the bottom up: Close, the danger zone, the note line. The hot zones fill the rest.
+		float closeY = m_Height - MARGIN - 14 - 34;
+		AddButton("close", "Close   (Esc)", bx, closeY, bw, "grey");
+		float resetY = closeY - 50;
+		AddButton("reset", "Reset brain", bx, resetY, bw, "red");
+		AFHM_Ui.Text(layoutRoot, "DANGER ZONE", bx + 6, resetY - 22, bw, 18, 12, label);
+		float noteY = resetY - 22 - 44;
+		m_Note = AFHM_Ui.Text(layoutRoot, "", bx, noteY, bw, 40, 13, ARGB(255, 174, 174, 178), 1);
 
-		AddButton("close", "Close   (Esc)", bx, m_Height - MARGIN - 14 - 34, bw, "grey");
+		AFHM_Ui.Text(layoutRoot, "HOT ZONES", bx + 6, y, bw, 18, 12, label);
+		y += 22;
+		m_ZonesX = bx;
+		m_ZonesY = y;
+		m_ZonesW = bw;
+		m_ZoneRowsMax = Math.Max(Math.Floor((noteY - 6 - y) / ZONE_ROW), 0);
 
 		// Show the last report at once, if there is one, while a fresh one is asked for.
 		m_View = new AFHM_ReportView();
@@ -267,6 +287,66 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	{
 		if (m_View && m_ReportHolder)
 			m_View.Layout(m_ReportHolder, items, REPORT_W, m_Height, true);
+		ShowZones(items);
+	}
+
+	// The areas above or below the map ("Z|key|place|level|gap|map" items), one row each with a
+	// button that resets that area. Rebuilt whenever a new report arrives.
+	protected void ShowZones(array<string> items)
+	{
+		// Only rebuilt when the list changed, so a row's hover does not flicker every refresh.
+		string sig = "";
+		foreach (string sigItem: items)
+		{
+			if (sigItem.IndexOf("Z|") == 0)
+				sig += sigItem + ";";
+		}
+		if (m_ZoneHolder && sig == m_ZonesSig)
+			return;
+		m_ZonesSig = sig;
+
+		array<string> oldKeys = m_Buttons.GetKeyArray();
+		foreach (string oldKey: oldKeys)
+		{
+			if (oldKey.IndexOf("zreset:") == 0)
+				m_Buttons.Remove(oldKey);
+		}
+		if (m_ZoneHolder)
+			m_ZoneHolder.Unlink();
+		m_ZoneHolder = null;
+		if (!layoutRoot || m_ZoneRowsMax <= 0)
+			return;
+		m_ZoneHolder = AFHM_Ui.Frame(layoutRoot, m_ZonesX, m_ZonesY, m_ZonesW, m_ZoneRowsMax * ZONE_ROW);
+
+		int white = ARGB(255, 255, 255, 255);
+		int rows = 0;
+		foreach (string item: items)
+		{
+			if (item.IndexOf("Z|") != 0 || rows >= m_ZoneRowsMax)
+				continue;
+			array<string> zp = new array<string>;
+			item.Split("|", zp);
+			if (zp.Count() < 5)
+				continue;
+			string zoneKey = zp[1];
+			string place = zp[2];
+			int gap = zp[4].ToInt();
+			string sign = "+";
+			if (gap < 0)
+				sign = "";
+			float ry = rows * ZONE_ROW;
+			int tone = AFHM_Ui.Rgba(255, 69, 58, 0.55);
+			if (gap < 0)
+				tone = AFHM_Ui.Rgba(48, 209, 88, 0.55);
+			new AFHM_Bubble(m_ZoneHolder, 0, ry, m_ZonesW, ZONE_ROW - 6, 12, tone);
+			AFHM_Ui.Text(m_ZoneHolder, place, 12, ry + 2, m_ZonesW - 90, 18, 14, white);
+			AFHM_Ui.Text(m_ZoneHolder, zp[3] + "/10  (" + sign + gap.ToString() + " vs map)", 12, ry + 18, m_ZonesW - 90, 14, 11, AFHM_Ui.Rgba(255, 255, 255, 0.8));
+			string cmd = "zreset:" + zoneKey;
+			m_Buttons.Insert(cmd, new AFHM_Button(m_ZoneHolder, PREFIX + cmd, "Reset", m_ZonesW - 72, ry + 4, 64, ZONE_ROW - 14, 72, 72, 74, 0.9, m_Handler));
+			rows++;
+		}
+		if (rows == 0)
+			AFHM_Ui.Text(m_ZoneHolder, "No area is above or below the map.", 6, 4, m_ZonesW - 12, 18, 13, ARGB(255, 174, 174, 178));
 	}
 
 	protected void Note(string text)
@@ -352,6 +432,10 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 			return "One level harder. Players hear in 20 s.";
 		if (cmd == "unpin")
 			return "Unpinned: it learns again.";
+		if (cmd == "reload")
+			return "config.json reloaded.";
+		if (cmd.IndexOf("zreset:") == 0)
+			return "Area reset. Players near it hear in 20 s.";
 		if (cmd == "reset")
 			return "Brain reset.";
 		return "Sent.";
