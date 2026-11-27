@@ -286,6 +286,23 @@ class AFHM_Util
 		return p.ToString() + "%";
 	}
 
+	// Text that came from a player (a name, a command) made safe to log, to write into the
+	// JSON files and to send in a "tag|text|text" report line: no separators, quotes or control
+	// characters, and no longer than maxLen.
+	static string Clean(string text, int maxLen)
+	{
+		string t = text;
+		t.Replace("|", "/");
+		t.Replace("\\", "/");
+		t.Replace("\"", "'");
+		t.Replace("\r", " ");
+		t.Replace("\n", " ");
+		t.Replace("\t", " ");
+		if (t.Length() > maxLen)
+			t = t.Substring(0, maxLen);
+		return t;
+	}
+
 	static string Now()
 	{
 		int y, mo, d, h, mi, s;
