@@ -370,8 +370,7 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	{
 		super.OnShow();
 		Print("[AFHiveMind] admin controls shown");
-		GetGame().GetInput().ChangeGameFocus(1);
-		GetGame().GetUIManager().ShowUICursor(true);
+		AFHM_TakeFocus();
 		GetGame().GetMission().PlayerControlDisable(INPUT_EXCLUDE_ALL);
 	}
 
@@ -379,9 +378,32 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 	{
 		super.OnHide();
 		Print("[AFHiveMind] admin controls hidden");
-		GetGame().GetInput().ChangeGameFocus(-1);
-		GetGame().GetUIManager().ShowUICursor(false);
 		GetGame().GetMission().PlayerControlEnable(false);
+		// Nothing else open: the character gets the mouse and keys back, whatever the count was.
+		UIScriptedMenu top = GetGame().GetUIManager().GetMenu();
+		if (!top || top == this)
+		{
+			GetGame().GetInput().ResetGameFocus();
+			GetGame().GetUIManager().ShowUICursor(false);
+		}
+	}
+
+	// DayZ gives the character the mouse and keys while its focus count is exactly 0. Closing the
+	// login countdown on a real server can leave that count below 0 (vanilla and Expansion's
+	// VanillaFixes both hand focus back), and then one menu's +1 only brings it to 0: no cursor,
+	// and the mouse still turns the camera. So the menu checks, and takes the focus if it has to.
+	protected void AFHM_TakeFocus()
+	{
+		TIntArray devices = {INPUT_DEVICE_MOUSE, INPUT_DEVICE_KEYBOARD};
+		foreach (int device : devices)
+		{
+			if (GetGame().GetInput().HasGameFocus(device))
+			{
+				GetGame().GetInput().ResetGameFocus(device);
+				GetGame().GetInput().ChangeGameFocus(1, device);
+			}
+		}
+		GetGame().GetUIManager().ShowUICursor(true);
 	}
 
 	bool AFHM_Clicked(Widget w)
@@ -498,6 +520,10 @@ class AFHM_ControlsMenu extends UIScriptedMenu
 		super.Update(timeslice);
 		m_Age += timeslice;
 
+		// Another mod can hand focus back or hide the cursor while the menu is open; take them again.
+		if (GetGame().GetUIManager().GetMenu() == this && (GetGame().GetInput().HasGameFocus(INPUT_DEVICE_MOUSE) || !GetGame().GetMouseCursorDesiredVisibility()))
+			AFHM_TakeFocus();
+
 		if (layoutRoot && m_Age < 0.5)
 			layoutRoot.SetAlpha(Math.Clamp(m_Age / 0.18, 0, 1));
 
@@ -592,10 +618,18 @@ modded class MissionGameplay
 		if (show && !m_AFHM_Panel)
 		{
 			m_AFHM_Panel = new AFHM_Panel();
-			array<string> waiting = new array<string>;
-			waiting.Insert("H|AF HiveMind");
-			waiting.Insert("I|Asking the server...");
-			m_AFHM_Panel.SetRows(waiting);
+			// The last report at once, if there is one, while a fresh one is asked for.
+			if (AFHM_ClientState.s_Report.Count() > 0)
+			{
+				m_AFHM_Panel.SetRows(AFHM_ClientState.s_Report);
+			}
+			else
+			{
+				array<string> waiting = new array<string>;
+				waiting.Insert("H|AF HiveMind");
+				waiting.Insert("I|Asking the server...");
+				m_AFHM_Panel.SetRows(waiting);
+			}
 			m_AFHM_Refresh = 0;
 			m_AFHM_Stamp = AFHM_ClientState.s_Stamp;
 		}
