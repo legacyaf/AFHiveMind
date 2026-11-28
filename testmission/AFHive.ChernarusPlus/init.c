@@ -380,6 +380,9 @@ class CustomMission: MissionGameplay
 				if (m_HiveStepTime >= 2)
 				{
 					AFHM_ShowPanel(false);
+					// What a live server's login countdown can do: hand the game the mouse twice,
+					// leaving the focus count below 0. The menu must still get the cursor.
+					GetGame().GetInput().ChangeGameFocus(-1);
 					Print("[AFHive] admin controls opened by the test: " + AFHM_OpenControls().ToString());
 					m_HiveStep = 201;
 					m_HiveStepTime = 0;
@@ -388,6 +391,11 @@ class CustomMission: MissionGameplay
 			case 201:
 				if (m_HiveStepTime >= 4)
 				{
+					bool gameHasMouse = GetGame().GetInput().HasGameFocus(INPUT_DEVICE_MOUSE);
+					bool cursorShown = GetGame().GetMouseCursorDesiredVisibility();
+					Print("[AFHive] admin controls: game has the mouse " + gameHasMouse.ToString() + ", cursor shown " + cursorShown.ToString());
+					if (gameHasMouse || !cursorShown)
+						Print("[AFHive] FAILED: the admin controls did not get the mouse cursor");
 					Print("[AFHive] SHOT admin_controls");
 					// Ask the runner to drag the window by its top strip, 200 px left and 120 down.
 					if (AFHM_ControlsPos(m_DragX, m_DragY))
@@ -430,6 +438,10 @@ class CustomMission: MissionGameplay
 						Print("[AFHive] FAILED: Esc closed the admin controls but opened " + after.ClassName());
 					else
 						Print("[AFHive] Esc closed the admin controls, and no other menu opened");
+					bool mouseBack = GetGame().GetInput().HasGameFocus(INPUT_DEVICE_MOUSE);
+					Print("[AFHive] after closing, the character has the mouse again: " + mouseBack.ToString());
+					if (!mouseBack && !after)
+						Print("[AFHive] FAILED: closing the admin controls did not give the mouse back");
 					if (after)
 						after.Close();
 					// Easier/Harder move the threat level by exactly one per click, and clicks in a

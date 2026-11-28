@@ -7,7 +7,7 @@
 class AFHM_Const
 {
 	// Keep equal to version in config.cpp (tools\release.ps1 checks). Shown at the top of the report.
-	static const string VERSION = "0.5.1";
+	static const string VERSION = "0.5.2";
 	static const string DIR = "$profile:AFHiveMind";
 	// F10 clicks are announced this long after the last click, for where they ended.
 	static const int ADMIN_ANNOUNCE_DELAY_MS = 20000;

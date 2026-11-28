@@ -1,0 +1,6 @@
+[h2]0.5.2[/h2]
+[list]
+[*][b]F10 now always gets the mouse cursor[/b]. On some servers the admin controls opened with no cursor and the mouse kept turning the camera, so nothing could be clicked. Closing the login countdown could leave the game holding the mouse; the menu now checks and takes it, and gives it back properly when it closes.
+[*]F9 shows the last report at once when reopened, instead of "Asking the server...".
+[*]The version label in the F9/F10 header is easier to read.
+[/list]

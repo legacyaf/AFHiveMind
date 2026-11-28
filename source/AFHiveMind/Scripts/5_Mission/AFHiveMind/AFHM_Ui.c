@@ -304,7 +304,7 @@ class AFHM_ReportView
 		{
 			AFHM_Ui.Text(f, title, PAD, y, width - 2 * PAD, 30, 26, white);
 			if (version)
-				AFHM_Ui.Text(f, "version " + version, PAD, y + 4, width - 2 * PAD, 24, 13, label, 2);
+				AFHM_Ui.Text(f, "version " + version, PAD, y + 4, width - 2 * PAD, 24, 13, dim, 2);
 		}
 		y += 40;
 
